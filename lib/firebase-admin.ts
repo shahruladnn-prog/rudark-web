@@ -22,14 +22,40 @@ if (!admin.apps.length) {
 // Export adminDb safely. 
 let adminDb: admin.firestore.Firestore;
 
+// Mock Firestore to prevent crashes on method chaining
+const mockFirestore = {
+    collection: (_name: string) => ({
+        doc: (_id: string) => ({
+            get: async () => ({ exists: false, data: () => undefined }),
+            set: async () => ({}),
+            update: async () => ({}),
+            delete: async () => ({}),
+        }),
+        where: () => ({
+            limit: () => ({ get: async () => ({ docs: [] }) }),
+            get: async () => ({ docs: [] })
+        }),
+        orderBy: () => ({
+            limit: () => ({ get: async () => ({ docs: [] }) }),
+            get: async () => ({ docs: [] })
+        }),
+        add: async () => ({ id: 'mock-id' }),
+        get: async () => ({ docs: [] }),
+    }),
+} as unknown as admin.firestore.Firestore;
+
 try {
     if (admin.apps.length) {
         adminDb = admin.firestore();
+        // Test connection (optional, but good for verification)
+        console.log("[Firebase Admin] Firestore instance created.");
     } else {
-        adminDb = {} as admin.firestore.Firestore;
+        console.warn("[Firebase Admin] Using MOCK Firestore (No Apps Initialized)");
+        adminDb = mockFirestore;
     }
 } catch (e) {
-    adminDb = {} as admin.firestore.Firestore;
+    console.error("[Firebase Admin] Failed to create Firestore instance, using Mock:", e);
+    adminDb = mockFirestore;
 }
 
 export { adminDb };
