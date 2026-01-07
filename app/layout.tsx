@@ -33,10 +33,25 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [categories, settings] = await Promise.all([
-    getCategories(),
-    getSettings()
-  ]);
+  let categories = [];
+  let settings = null;
+
+  try {
+    console.log('[RootLayout] Fetching global data...');
+    [categories, settings] = await Promise.all([
+      getCategories().catch(e => {
+        console.error('[RootLayout] Categories fetch failed:', e);
+        return [];
+      }),
+      getSettings().catch(e => {
+        console.error('[RootLayout] Settings fetch failed:', e);
+        return null;
+      })
+    ]);
+    console.log('[RootLayout] Data fetched successfully.');
+  } catch (error) {
+    console.error('[RootLayout] CRITICAL DATA FAILURE:', error);
+  }
 
   return (
     <html lang="en">
