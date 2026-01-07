@@ -39,3 +39,12 @@ export interface Category {
     created_at?: any;
     updated_at?: any;
 }
+
+export interface StoreSettings {
+    storeName: string;
+    supportEmail: string;
+    announcementText: string;
+    announcementEnabled: boolean;
+    businessAddress: string;
+    taxRate: number;
+}

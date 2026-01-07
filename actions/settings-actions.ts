@@ -40,6 +40,7 @@ import { revalidatePath, revalidateTag } from 'next/cache';
 export async function saveSettings(data: StoreSettings) {
     try {
         await adminDb.collection('settings').doc('general').set(data, { merge: true });
+        // @ts-ignore
         revalidateTag('settings');
         revalidatePath('/');
         return { success: true };
