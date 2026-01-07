@@ -32,7 +32,7 @@ export async function getPromos() {
     }
 }
 
-export async function getPromo(id: string) {
+export async function getPromo(id: string): Promise<PromoCode | null> {
     try {
         const doc = await adminDb.collection('promos').doc(id).get();
         if (!doc.exists) return null;
@@ -41,7 +41,7 @@ export async function getPromo(id: string) {
             id: doc.id,
             ...data,
             created_at: data.created_at?.toDate?.().toISOString() || null
-        };
+        } as unknown as PromoCode;
     } catch (error) {
         return null;
     }
