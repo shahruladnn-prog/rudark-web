@@ -5,8 +5,10 @@ import { CartProvider } from "@/context/cart-context";
 import { AuthProvider } from '@/components/auth-provider';
 import Navbar from "@/components/navbar";
 import FooterRefined from "@/components/footer-refined";
-import { getCategories } from '@/actions/category-actions';
-import { getSettings } from '@/actions/settings-actions';
+
+// Temporarily removed Server Actions for Isolation Test
+// import { getCategories } from '@/actions/category-actions';
+// import { getSettings } from '@/actions/settings-actions';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -26,32 +28,18 @@ export const metadata: Metadata = {
   description: "Premium technical gear for aquatic dominance.",
 };
 
-
-
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  let categories: any[] = [];
-  let settings: any = null;
-
-  try {
-    console.log('[RootLayout] Fetching global data...');
-    [categories, settings] = await Promise.all([
-      getCategories().catch(e => {
-        console.error('[RootLayout] Categories fetch failed:', e);
-        return [];
-      }),
-      getSettings().catch(e => {
-        console.error('[RootLayout] Settings fetch failed:', e);
-        return null;
-      })
-    ]);
-    console.log('[RootLayout] Data fetched successfully.');
-  } catch (error) {
-    console.error('[RootLayout] CRITICAL DATA FAILURE:', error);
-  }
+  // Static Fallback Data
+  const categories: any[] = [];
+  const settings: any = {
+    storeName: "Rud'Ark",
+    announcementText: "System Maintenance Mode",
+    announcementEnabled: true
+  };
 
   return (
     <html lang="en">
