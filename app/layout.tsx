@@ -26,9 +26,9 @@ export const metadata: Metadata = {
   title: "Rud'Ark PRO SHOP",
   description: "Premium technical gear for aquatic dominance.",
   icons: {
-    icon: '/logo.png',
-    shortcut: '/logo.png',
-    apple: '/logo.png',
+    icon: '/logo.png?v=2',
+    shortcut: '/logo.png?v=2',
+    apple: '/logo.png?v=2',
   },
   openGraph: {
     title: "Rud'Ark PRO SHOP",
