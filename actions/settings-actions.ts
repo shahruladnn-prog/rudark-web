@@ -2,6 +2,7 @@
 
 import { adminDb } from '@/lib/firebase-admin';
 import { unstable_cache } from 'next/cache';
+import { StoreSettings } from '@/types';
 
 export const getSettings = unstable_cache(
     async (): Promise<StoreSettings> => {
