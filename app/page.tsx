@@ -42,6 +42,7 @@ async function getProducts() {
 }
 
 export default async function Home() {
+  console.log('[Home Page] Rendering started...');
   const products = await getProducts();
   const categories: any[] = await getCategories(); // Type assertion needed or use Category[]
 

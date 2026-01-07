@@ -37,9 +37,11 @@ if (!admin.apps.length) {
         }
 
     } catch (error) {
-        console.error('Firebase Admin initialization error', error);
+        console.error('FIREBASE INIT ERROR:', error);
     }
 }
+
+console.log(`[Firebase Admin] Apps: ${admin.apps.length}, ProjectId Env: ${process.env.FIREBASE_ADMIN_PROJECT_ID ? 'Set' : 'Missing'}`);
 
 // Export adminDb safely. 
 // If admin app is not initialized (e.g. during build without keys), 
