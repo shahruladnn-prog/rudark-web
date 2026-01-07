@@ -10,7 +10,6 @@ export default function ShopCategoryPage({ params }: { params: { slug: string[] 
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [title, setTitle] = useState('');
-    const [loadingDiagnostics, setDiagnostics] = useState<any>(null); // renamed to avoid conflict if I used debugLog
 
     useEffect(() => {
         const load = async () => {
@@ -19,7 +18,7 @@ export default function ShopCategoryPage({ params }: { params: { slug: string[] 
             const data = await getProductsBySlug(slug);
             setProducts(data.products);
             setTitle(data.subcategoryName ? `${data.categoryName} / ${data.subcategoryName}` : data.categoryName || 'Shop');
-            setDiagnostics(data.diagnostics);
+            // Diagnostics removed
             setLoading(false);
         };
         load();
@@ -41,12 +40,6 @@ export default function ShopCategoryPage({ params }: { params: { slug: string[] 
                 <Link href="/" className="text-rudark-volt hover:underline uppercase text-sm tracking-widest font-bold">Return to Base</Link>
 
                 {/* DIAGNOSTICS */}
-                {loadingDiagnostics && (
-                    <div className="mt-8 p-4 bg-black/50 border border-rudark-grey text-left text-xs font-mono text-gray-400 max-w-2xl mx-auto">
-                        <p className="text-rudark-volt mb-2">SYSTEM DIAGNOSTICS:</p>
-                        <pre className="whitespace-pre-wrap">{JSON.stringify(loadingDiagnostics, null, 2)}</pre>
-                    </div>
-                )}
             </div>
         );
     }
@@ -94,12 +87,7 @@ export default function ShopCategoryPage({ params }: { params: { slug: string[] 
                 </div>
 
                 {/* DIAGNOSTICS */}
-                {loadingDiagnostics && (
-                    <div className="mt-20 p-4 bg-black/50 border border-rudark-grey text-left text-xs font-mono text-gray-400">
-                        <p className="text-rudark-volt mb-2">SYSTEM DIAGNOSTICS:</p>
-                        <pre className="whitespace-pre-wrap">{JSON.stringify(loadingDiagnostics, null, 2)}</pre>
-                    </div>
-                )}
+// Diagnostics removed
             </div>
         </div>
     );
