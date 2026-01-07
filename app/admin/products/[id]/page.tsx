@@ -11,6 +11,7 @@ async function getProduct(id: string) {
     if (!doc.exists) return undefined;
 
     const data = doc.data();
+    if (!data) return undefined;
 
     // Helper to safely serialize dates
     const formatDate = (date: any) => {
