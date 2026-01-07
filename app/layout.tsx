@@ -33,8 +33,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  let categories = [];
-  let settings = null;
+  let categories: any[] = [];
+  let settings: any = null;
 
   try {
     console.log('[RootLayout] Fetching global data...');
