@@ -31,7 +31,7 @@ async function getProduct(id: string) {
     return {
         id: doc.id,
         ...serializedData
-    } as Product;
+    } as unknown as Product;
 }
 
 // Fixed params type for Next.js 15+ / Server Component
