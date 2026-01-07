@@ -1,6 +1,6 @@
 'use client';
 
-import { StoreSettings } from "@/actions/settings-actions";
+import { StoreSettings } from "@/types";
 import { X } from "lucide-react";
 import { useState } from "react";
 
