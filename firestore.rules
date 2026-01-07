@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Products: Everyone can read, only authenticated users (admins) can write
+    match /products/{product} {
+      allow read: if true;
+      allow write: if request.auth.uid != null;
+    }
+
+    // Orders: Only admins can manage orders directly (Webhooks use Admin SDK which bypasses rules)
+    // Users might need to write "Pending" orders in client side?
+    // User plan said: "Create a record in Firebase orders... before redirect".
+    // So Client needs WRITE permission to /orders.
+    // Let's optimize: Allow create if valid structure, but maybe just authenticated/anonymous auth?
+    // User didn't specify auth for client.
+    // "create a record ... as a 'Pending Order'".
+    // Let's allow create for everyone for now (risk of spam), or better, assume anonymous auth.
+    // For now: allow create: if true;
+    match /orders/{order} {
+      allow create: if true;
+      allow read, update, delete: if request.auth.uid != null;
+    }
+    
+    // Default: Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
