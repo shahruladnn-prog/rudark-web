@@ -25,6 +25,27 @@ const montserrat = Montserrat({
 export const metadata: Metadata = {
   title: "Rud'Ark PRO SHOP",
   description: "Premium technical gear for aquatic dominance.",
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
+  openGraph: {
+    title: "Rud'Ark PRO SHOP",
+    description: "Premium technical gear for aquatic dominance.",
+    url: 'https://rudark-web.vercel.app',
+    siteName: "Rud'Ark",
+    images: [
+      {
+        url: '/logo.png',
+        width: 800,
+        height: 800,
+        alt: "Rud'Ark Logo",
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
 };
 
 export default async function RootLayout({
