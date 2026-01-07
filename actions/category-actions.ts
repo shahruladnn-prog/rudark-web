@@ -62,6 +62,7 @@ export async function saveCategory(data: any) {
             await adminDb.collection('categories').add({ ...payload, order });
         }
 
+        // @ts-ignore
         revalidateTag('categories-fixed');
         revalidatePath('/admin/categories');
         return { success: true };
@@ -74,6 +75,7 @@ export async function saveCategory(data: any) {
 export async function deleteCategory(id: string) {
     try {
         await adminDb.collection('categories').doc(id).delete();
+        // @ts-ignore
         revalidateTag('categories-fixed');
         revalidatePath('/admin/categories');
         return { success: true };
