@@ -12,7 +12,12 @@ export async function seedSampleData() {
             description: "## Conquer the Rivers\n\nOur flagship single-seater kayak designed for stability and speed. Perfect for Malaysian rivers and coastal waters.\n\n*   **Material**: High-Density Polyethylene\n*   **Weight**: 22kg\n*   **Length**: 3.5m\n*   **Includes**: Paddle and seat",
             images: ["https://images.unsplash.com/photo-1541625602330-2277a4c46182?auto=format&fit=crop&w=800&q=80"],
             category: "Kayaks",
-            stock_status: 'IN_STOCK'
+            category_slug: "watercraft",
+            is_featured: true,
+            tags: ["kayak", "water", "expedition"],
+            stock_status: 'IN_STOCK',
+            created_at: new Date(),
+            updated_at: new Date()
         },
         {
             sku: 'RA-VEST-PRO',
@@ -21,7 +26,12 @@ export async function seedSampleData() {
             description: "Standard safety vest with high buoyancy. Essential for all water activities.",
             images: ["https://images.unsplash.com/photo-1544265436-b6eb9a68cc53?auto=format&fit=crop&w=800&q=80"],
             category: "Safety Gear",
-            stock_status: 'IN_STOCK'
+            category_slug: "gear",
+            is_featured: false,
+            tags: ["safety", "pfd", "vest"],
+            stock_status: 'IN_STOCK',
+            created_at: new Date(),
+            updated_at: new Date()
         },
         {
             sku: 'RA-PADDLE-CF',
@@ -30,7 +40,12 @@ export async function seedSampleData() {
             description: "Ultra-lightweight paddle for long-distance touring. Reduces fatigue and maximizes stroke power.",
             images: ["https://images.unsplash.com/photo-1588656753457-4148e91dcbe9?auto=format&fit=crop&w=800&q=80"],
             category: "Accessories",
-            stock_status: 'LOW'
+            category_slug: "gear",
+            is_featured: false,
+            tags: ["paddle", "carbon", "touring"],
+            stock_status: 'LOW',
+            created_at: new Date(),
+            updated_at: new Date()
         },
         {
             sku: 'RA-DRYBAG-20L',
@@ -39,7 +54,12 @@ export async function seedSampleData() {
             description: "Keep your valuables 100% dry. Heavy-duty waterproof material.",
             images: ["https://images.unsplash.com/photo-1623910398638-316496464522?auto=format&fit=crop&w=800&q=80"],
             category: "Accessories",
-            stock_status: 'IN_STOCK'
+            category_slug: "gear",
+            is_featured: false,
+            tags: ["drybag", "waterproof", "accessories"],
+            stock_status: 'IN_STOCK',
+            created_at: new Date(),
+            updated_at: new Date()
         },
         {
             sku: 'RA-SNORKEL-SET',
@@ -48,7 +68,12 @@ export async function seedSampleData() {
             description: "Anti-fog mask and dry-top snorkel. Explore the underwater world clearly.",
             images: ["https://images.unsplash.com/photo-1571527581024-814d24597405?auto=format&fit=crop&w=800&q=80"],
             category: "Swimming",
-            stock_status: 'OUT'
+            category_slug: "watercraft",
+            is_featured: false,
+            tags: ["snorkel", "swim", "mask"],
+            stock_status: 'OUT',
+            created_at: new Date(),
+            updated_at: new Date()
         }
     ];
 
