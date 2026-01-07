@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { StoreSettings, saveSettings } from '@/actions/settings-actions';
+import { StoreSettings } from '@/types';
+import { saveSettings } from '@/actions/settings-actions';
 import { Save, Building, Megaphone, Receipt } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
