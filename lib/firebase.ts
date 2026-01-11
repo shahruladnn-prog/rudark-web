@@ -1,4 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -14,23 +15,27 @@ const firebaseConfig = {
 // Validate Config
 const isConfigValid = !!firebaseConfig.apiKey;
 
-if (!isConfigValid) {
-    console.error("CRITICAL: Firebase API Key is missing. Check your .env.local file.");
-}
-
 // Initialize Firebase (Singleton pattern)
 let app: any = null;
 let db: any = null;
 let storage: any = null;
+let functions: any = null;
+let initError: string | null = null;
+
+if (!isConfigValid) {
+    initError = "Missing Firebase Configuration. Check .env.local";
+}
 
 if (isConfigValid) {
     try {
         app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
         db = getFirestore(app);
         storage = getStorage(app);
-    } catch (error) {
+        functions = getFunctions(app, 'us-central1'); // Ensure region matches
+    } catch (error: any) {
         console.error("Firebase Init Error:", error);
+        initError = error.message || "Unknown Firebase initialization error";
     }
 }
 
-export { app, db, storage };
+export { app, db, storage, functions, initError };

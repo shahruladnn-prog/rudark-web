@@ -1,48 +1,50 @@
 import { adminDb } from '@/lib/firebase-admin';
+import { serializeDocs } from '@/lib/serialize-firestore';
 import ProductCard from '@/components/product-card';
 import { Product } from '@/types';
-import AnimatedLogo from '@/components/animated-logo';
+import dynamicImport from 'next/dynamic';
 import ActivityGrid from '@/components/activity-grid';
 import FeaturedStory from '@/components/featured-story';
 import { getCategories } from '@/actions/category-actions';
 
 export const dynamic = 'force-dynamic';
 
+// Lazy load AnimatedLogo to defer framer-motion loading
+const AnimatedLogo = dynamicImport(() => import('@/components/animated-logo'), {
+  loading: () => <div className="h-screen bg-rudark-matte" />
+});
+
+const TIMEOUT_MS = 5000;
+
+function promiseWithTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let timeoutId: NodeJS.Timeout;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.warn(`[Home] Data fetch timed out after ${ms}ms`);
+      resolve(fallback);
+    }, ms);
+  });
+
+  return Promise.race([
+    promise.then((res) => {
+      clearTimeout(timeoutId);
+      return res;
+    }),
+    timeoutPromise
+  ]);
+}
+
 async function getProducts() {
   try {
     // console.log('[Home] Fetching products...');
     const productsRef = adminDb.collection('products');
-    // Basic check to see if collection exists/works (mock db handling)
     if (!productsRef) return [];
 
     const snapshot = await productsRef.where('stock_status', '!=', 'ARCHIVED').limit(8).get();
 
-    if (snapshot.empty) {
-      return [];
-    }
+    if (snapshot.empty) return [];
 
-    // Firestore returns plain objects, need to serialize for Next.js
-    const products: Product[] = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        sku: data.sku,
-        name: data.name,
-        web_price: data.web_price,
-        description: data.description,
-        images: data.images,
-        category: data.category,
-        stock_status: data.stock_status,
-        loyverse_item_id: data.loyverse_item_id,
-        loyverse_variant_id: data.loyverse_variant_id,
-        // Ensure optional fields have fallbacks to prevent serialization errors
-        is_featured: data.is_featured || false,
-        tags: data.tags || [],
-        category_slug: data.category_slug || ''
-      } as unknown as Product;
-    });
-
-    return products;
+    return serializeDocs<Product>(snapshot);
   } catch (error) {
     console.error('[Home] Error fetching products:', error);
     return [];
@@ -50,8 +52,11 @@ async function getProducts() {
 }
 
 export default async function Home() {
-  const products = await getProducts();
-  const categories: any[] = await getCategories().catch(() => []);
+  // Parallel fetch with timeouts
+  const [products, categories]: [Product[], any[]] = await Promise.all([
+    promiseWithTimeout(getProducts(), TIMEOUT_MS, []),
+    promiseWithTimeout(getCategories().catch(() => []), TIMEOUT_MS, [])
+  ]);
 
   return (
     <div className="min-h-screen bg-rudark-matte selection:bg-rudark-volt selection:text-black">
@@ -71,7 +76,7 @@ export default async function Home() {
             New <span className="text-rudark-volt">Arrivals</span>
           </h2>
           <span className="text-gray-500 font-mono text-xs hidden md:block tracking-widest">
-               // FALL_WINTER_2025_DROP
+
           </span>
         </div>
 

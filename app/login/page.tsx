@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { signInWithEmailAndPassword, getAuth } from 'firebase/auth';
-import { app } from '@/lib/firebase';
+import { app, initError } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { Lock, ArrowRight, AlertCircle } from 'lucide-react';
 
@@ -17,7 +17,7 @@ export default function LoginPage() {
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!app) {
-            setError('System Configuration Error: Firebase not initialized.');
+            setError(initError || 'System Configuration Error: Firebase not initialized.');
             return;
         }
 
@@ -41,9 +41,9 @@ export default function LoginPage() {
                 <div className="bg-red-900/20 text-red-400 p-8 border border-red-900 rounded-sm max-w-md text-center">
                     <AlertCircle size={48} className="mx-auto mb-4" />
                     <h1 className="text-xl font-bold uppercase mb-2">System Error</h1>
-                    <p className="font-mono text-sm mb-4">Firebase API Keys are missing.</p>
+                    <p className="font-mono text-sm mb-4">{initError || "Firebase API Keys are missing."}</p>
                     <div className="text-xs bg-black/50 p-4 rounded text-left overflow-x-auto">
-                        Please configure .env.local
+                        {initError ? "Please check console or .env.local" : "Please configure .env.local"}
                     </div>
                 </div>
             </div>

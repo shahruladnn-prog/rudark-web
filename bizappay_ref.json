@@ -1,0 +1,459 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Bizappay API V3",
+    "description": "Complete API documentation for Bizappay V3. This API allows merchants to manage categories, bills, payments, and settlements.",
+    "version": "3.0.0",
+    "contact": {
+      "name": "Bizappay Support",
+      "url": "https://www.bizappay.my/"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://bizappay.my/api/v3",
+      "description": "Production Server"
+    },
+    {
+      "url": "https://stg.bizappay.my/api/v3",
+      "description": "Sandbox / Staging Server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authentication",
+        "description": "Token obtained from the /token endpoint. Required for most endpoints."
+      }
+    }
+  },
+  "paths": {
+    "/token": {
+      "post": {
+        "summary": "Generate Token",
+        "description": "Generate an authentication token using your API Key. This token is required for subsequent API requests.",
+        "operationId": "generateToken",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "apiKey": {
+                    "type": "string",
+                    "description": "Your Merchant API Key found in Settings > Profile page."
+                  }
+                },
+                "required": ["apiKey"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response with token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" },
+                    "msg": { "type": "string", "example": "Success" },
+                    "token": { "type": "string", "example": "YjdhMjhlZDgyMGI5YTcxNmY2ZGRlNTRlMGIxMjNiM2QzZDg1N2FiM2YyMzcyZjdjYzI0NTM4OGViZjIxZGFlNg==" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/category/create": {
+      "post": {
+        "summary": "Create Category",
+        "description": "Create a new category for bills (e.g., 'Rental', 'Donation').",
+        "operationId": "createCategory",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "apiKey": { "type": "string" },
+                  "name": { "type": "string", "description": "Name of the category." },
+                  "description": { "type": "string", "maxLength": 50, "description": "Short description (max 50 chars)." }
+                },
+                "required": ["apiKey", "name", "description"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Category created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" },
+                    "msg": { "type": "string", "example": "Success" },
+                    "categoryCode": { "type": "string", "example": "4yWKX9EDjb" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/category": {
+      "post": {
+        "summary": "Category List",
+        "description": "Retrieve a list of all created bill categories.",
+        "operationId": "listCategories",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "apiKey": { "type": "string" }
+                },
+                "required": ["apiKey"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "List of categories retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" },
+                    "msg": { "type": "string", "example": "Success" },
+                    "categories": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": { "type": "string" },
+                          "name": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payment-bank-list": {
+      "post": {
+        "summary": "Payment Bank List",
+        "description": "List all banks, their codes, and online/offline status. Required if bypassing the Bizappay payment page.",
+        "operationId": "getBankList",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "apiKey": { "type": "string" }
+                },
+                "required": ["apiKey"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "List of banks retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" },
+                    "msg": { "type": "string", "example": "Success" },
+                    "banks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": { "type": "string", "example": "MB2U0227" },
+                          "name": { "type": "string", "example": "Maybank2U" },
+                          "status": { "type": "string", "example": "online" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bill/create": {
+      "post": {
+        "summary": "Create Bill",
+        "description": "Create a new bill for payment.",
+        "operationId": "createBill",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "apiKey": { "type": "string" },
+                  "category": { "type": "string", "description": "Category Code from Category List API." },
+                  "name": { "type": "string", "description": "Bill title (5-100 chars)." },
+                  "amount": { "type": "string", "description": "Bill amount (e.g., 5.00). Must be > 5.00." },
+                  "payer_name": { "type": "string", "description": "Payer's name (5-70 chars)." },
+                  "payer_email": { "type": "string", "description": "Payer's email for notifications (max 50 chars)." },
+                  "payer_phone": { "type": "string", "description": "Payer's phone number (max 20 chars)." },
+                  "webreturn_url": { "type": "string", "description": "Optional. Redirect URL after successful payment." },
+                  "callback_url": { "type": "string", "description": "Optional. Webhook URL for payment updates." },
+                  "ext_reference": { "type": "string", "description": "Optional. External system reference." },
+                  "splitArgs": { 
+                    "type": "string", 
+                    "description": "Optional. JSON string for split payments. E.g., {\"type\":1,\"split\":{\"user_api_key\":10}}."
+                  }
+                },
+                "required": ["apiKey", "category", "name", "amount", "payer_name", "payer_email", "payer_phone"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bill created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" },
+                    "msg": { "type": "string", "example": "Success" },
+                    "billCode": { "type": "string", "example": "nTshoNUSvV" },
+                    "url": { "type": "string", "example": "https://bizappay.my/nTshoNUSvV" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bulk-payment": {
+      "post": {
+        "summary": "Create Bill for Bulk Payment",
+        "description": "Create a bill designed for multiple payments/bulk usage.",
+        "operationId": "createBulkBill",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "apiKey": { "type": "string" },
+                  "category": { "type": "string" },
+                  "name": { "type": "string" },
+                  "amount": { "type": "string" },
+                  "payer_name": { "type": "string" },
+                  "payer_email": { "type": "string" },
+                  "payer_phone": { "type": "string" },
+                  "bulk_count": { "type": "integer", "description": "Number of payments in this bill." },
+                  "webreturn_url": { "type": "string" },
+                  "callback_url": { "type": "string" },
+                  "ext_reference": { "type": "string" }
+                },
+                "required": ["apiKey", "category", "name", "amount", "payer_name", "payer_email", "payer_phone", "bulk_count"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk bill created (Response structure implies bill details/URL similarly to Create Bill)"
+          }
+        }
+      }
+    },
+    "/bill/info": {
+      "post": {
+        "summary": "Get Bill Information by Billcode",
+        "description": "Retrieve bill details and payment history using the Bill Code.",
+        "operationId": "getBillInfo",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "apiKey": { "type": "string" },
+                  "search_str": { "type": "string", "description": "The Bill Code (e.g., OiU6DTopBL1)" },
+                  "payment_status": { 
+                    "type": "string", 
+                    "enum": ["1", "2", "3", "4"],
+                    "description": "Filter by status: 1=success, 2=pending, 3=failed, 4=no action" 
+                  },
+                  "latest": { "type": "boolean", "description": "Get only the latest payment row." }
+                },
+                "required": ["apiKey", "search_str"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bill information retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "msg": { "type": "string" },
+                    "bill": {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string" },
+                        "description": { "type": "string" },
+                        "billcode": { "type": "string" },
+                        "payments": { 
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "status": { "type": "string" },
+                              "paidamount": { "type": "string" },
+                              "invoice": { "type": "string" },
+                              "paidvia": { "type": "string" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bill/info?search=invoice": {
+      "post": {
+        "summary": "Get Bill Information by Invoice Number",
+        "description": "Retrieve bill details using the Invoice Number (BP...)",
+        "operationId": "getBillInfoByInvoice",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+            {
+                "name": "search",
+                "in": "query",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "enum": ["invoice"]
+                }
+            }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "apiKey": { "type": "string" },
+                  "search_str": { "type": "string", "description": "Invoice number (e.g., BPXXXXXXXXXX)" }
+                },
+                "required": ["apiKey", "search_str"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bill information retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "msg": { "type": "string" },
+                    "bill": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sso": {
+      "post": {
+        "summary": "Single Sign-On (SSO)",
+        "description": "Generate a redirect URL to log the user into their Bizappay account from your application.",
+        "operationId": "singleSignOn",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "apiKey": { "type": "string" },
+                  "username": { "type": "string", "description": "The user's Bizappay username." }
+                },
+                "required": ["apiKey", "username"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSO URL generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" },
+                    "msg": { "type": "string", "example": "validated" },
+                    "url": { "type": "string", "description": "Redirect the user to this URL." }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

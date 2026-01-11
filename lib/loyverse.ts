@@ -28,18 +28,54 @@ export class LoyverseClient {
         return response.json();
     }
 
-    // Fetch all items (with variants) to get details like Name, ID, SKU
-    async getItems(limit = 250, cursor?: string): Promise<{ items: any[], cursor?: string }> {
-        let url = `/items?limit=${limit}`;
-        if (cursor) url += `&cursor=${cursor}`;
-        return this.fetch(url);
+    // Fetch all items (with variants), handling pagination automatically
+    async getItems(limit = 250): Promise<{ items: any[] }> {
+        let allItems: any[] = [];
+        let cursor: string | undefined = undefined;
+
+        do {
+            let url = `/items?limit=${limit}`;
+            if (cursor) url += `&cursor=${cursor}`;
+
+            const response = await this.fetch(url);
+            if (response.items) {
+                allItems = allItems.concat(response.items);
+            }
+            cursor = response.cursor;
+        } while (cursor);
+
+        return { items: allItems };
     }
 
-    // Fetch inventory levels for everything (needs mapping to items)
-    async getInventory(limit = 250, cursor?: string): Promise<{ inventory_levels: any[], cursor?: string }> {
-        let url = `/inventory?limit=${limit}`;
-        if (cursor) url += `&cursor=${cursor}`;
-        return this.fetch(url);
+    // Fetch inventory levels for everything, handling pagination
+    async getInventory(limit = 250): Promise<{ inventory_levels: any[] }> {
+        let allInventory: any[] = [];
+        let cursor: string | undefined = undefined;
+
+        do {
+            let url = `/inventory?limit=${limit}`;
+            if (cursor) url += `&cursor=${cursor}`;
+
+            const response = await this.fetch(url);
+            if (response.inventory_levels) {
+                allInventory = allInventory.concat(response.inventory_levels);
+            }
+            cursor = response.cursor;
+        } while (cursor);
+
+        return { inventory_levels: allInventory };
+    }
+
+    // Fetch Stores
+    async getStores(): Promise<{ stores: any[] }> {
+        const response = await this.fetch('/stores');
+        return response; // Assumes response has { stores: [...] }
+    }
+
+    // Fetch Payment Types
+    async getPaymentTypes(): Promise<{ payment_types: any[] }> {
+        const response = await this.fetch('/payment_types');
+        return response;
     }
 
     // Get specific variant inventory - useful for checks
@@ -57,8 +93,34 @@ export class LoyverseClient {
     async createReceipt(receiptData: any) {
         return this.fetch('/receipts', {
             method: 'POST',
-            body: JSON.stringify(receiptData)
+            body: JSON.stringify(receiptData),
         });
+    }
+
+    /**
+     * Adjust inventory level for a variant
+     * @param variant_id - Loyverse variant ID
+     * @param adjustment - Positive = add stock, Negative = deduct stock
+     * @param reason - Reason for adjustment (optional)
+     */
+    async adjustInventory(params: {
+        variant_id: string;
+        adjustment: number;
+        reason?: string;
+    }) {
+        console.log(`[Loyverse] Adjusting inventory: variant=${params.variant_id}, adjustment=${params.adjustment}`);
+
+        const response = await this.fetch('/inventory', {
+            method: 'POST',
+            body: JSON.stringify({
+                variant_id: params.variant_id,
+                quantity_adjustment: params.adjustment,
+                reason: params.reason || 'Stock adjustment'
+            })
+        });
+
+        console.log(`[Loyverse] Inventory adjusted successfully`);
+        return response;
     }
 }
 

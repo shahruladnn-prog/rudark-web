@@ -3,12 +3,13 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  
+
   /* Corporate Colors */
   --color-rudark-volt: #D4F222;
   --color-rudark-matte: #121212;
   --color-rudark-carbon: #1F2937;
   --color-rudark-grey: #374151;
+  --color-rudark-charcoal: #0F0F0F;
 
   /* Fonts */
   --font-sans: var(--font-montserrat);
@@ -26,7 +27,47 @@ body {
   font-family: var(--font-sans);
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--font-condensed);
   text-transform: uppercase;
+}
+
+/* Dialog & Toast Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
