@@ -18,7 +18,7 @@ export default function CategorySelector({ selectedCategories, onChange, disable
                 // Fetch categories from server action
                 const { getCategories } = await import('@/actions/category-actions');
                 const cats = await getCategories();
-                setCategories(cats.map(c => ({ slug: c.slug, name: c.name })));
+                setCategories(cats.map((c: any) => ({ slug: c.slug, name: c.name })));
             } catch (error) {
                 console.error('Error fetching categories:', error);
             } finally {
