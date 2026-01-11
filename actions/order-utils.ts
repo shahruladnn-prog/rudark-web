@@ -44,28 +44,89 @@ export async function processSuccessfulOrder(orderId: string) {
         // 2. Loyverse Integration (Inventory Deduction)
         try {
             console.log(`[ProcessOrder] Syncing to Loyverse...`);
-            // Map items for Loyverse Receipt
-            const receiptItems = (order.items || []).map((item: any) => {
+
+            // Map items for Loyverse Receipt with fallback for missing variant_id
+            const receiptItems = await Promise.all((order.items || []).map(async (item: any) => {
                 const qty = Number(item.quantity);
                 const price = Number(item.web_price);
+
+                let variantId = item.loyverse_variant_id;
+
+                // Fallback: If variant_id is missing, fetch from Loyverse using SKU
+                if (!variantId && item.sku) {
+                    console.log(`[ProcessOrder] Missing variant_id for SKU ${item.sku}, fetching from Loyverse...`);
+                    try {
+                        const loyverseResponse = await loyverse.getItems();
+                        const loyverseItems = loyverseResponse.items || [];
+                        const matchingItem = loyverseItems.find((li: any) =>
+                            li.variants?.some((v: any) => v.sku === item.sku)
+                        );
+
+                        if (matchingItem) {
+                            const matchingVariant = matchingItem.variants.find((v: any) => v.sku === item.sku);
+                            if (matchingVariant) {
+                                variantId = matchingVariant.variant_id;
+                                console.log(`[ProcessOrder] Found variant_id: ${variantId} for SKU ${item.sku}`);
+
+                                // Update product in Firestore for future orders
+                                try {
+                                    await adminDb.collection('products').doc(item.sku).update({
+                                        loyverse_variant_id: variantId
+                                    });
+                                    console.log(`[ProcessOrder] Updated product ${item.sku} with variant_id`);
+                                } catch (updateError) {
+                                    console.warn(`[ProcessOrder] Could not update product ${item.sku}:`, updateError);
+                                }
+                            }
+                        } else {
+                            console.warn(`[ProcessOrder] No Loyverse item found for SKU ${item.sku}`);
+                        }
+                    } catch (fetchError) {
+                        console.error(`[ProcessOrder] Error fetching variant_id for SKU ${item.sku}:`, fetchError);
+                    }
+                }
+
                 return {
-                    variant_id: item.loyverse_variant_id,
+                    variant_id: variantId,
                     quantity: qty,
-                    price: price  // Loyverse uses simple 'price' field, not 'price_money'
+                    price: price,
+                    sku: item.sku,  // Keep for logging
+                    name: item.name  // Keep for logging
                 };
-            });
+            }));
 
             // Filter for valid items only to prevent API rejection 
             const validLineItems = receiptItems.filter((i: any) => i.variant_id);
 
-            // Add Shipping Fee Line Item
-            const shippingCost = Number(order.shipping_cost || 0);
-            console.log(`[ProcessOrder] Raw shipping_cost from order: ${order.shipping_cost}, Parsed: ${shippingCost}`);
+            // Log any items that still don't have variant_id
+            const missingVariantIds = receiptItems.filter((i: any) => !i.variant_id);
+            if (missingVariantIds.length > 0) {
+                console.warn(`[ProcessOrder] Items missing variant_id:`, missingVariantIds.map((i: any) => `${i.sku} (${i.name})`));
+            }
 
-            if (shippingCost > 0) {
+            // Add Shipping/Collection Fee Line Item
+            const shippingCost = Number(order.shipping_cost || 0);
+            const collectionFee = Number(order.collection_fee || 0);
+            const deliveryMethod = order.delivery_method || 'delivery';
+
+            console.log(`[ProcessOrder] Delivery method: ${deliveryMethod}, Shipping: RM${shippingCost}, Collection: RM${collectionFee}`);
+
+            if (deliveryMethod === 'self_collection' && collectionFee > 0) {
+                // Add collection fee for self-collection orders
+                const COLLECTION_FEE_VARIANT_ID = '405b8334-9248-432d-8458-5aefe0000af1'; // Same as shipping fee SKU 10071
+
+                validLineItems.push({
+                    variant_id: COLLECTION_FEE_VARIANT_ID,
+                    quantity: 1,
+                    price: collectionFee,
+                    line_note: `Collection Fee: RM${collectionFee.toFixed(2)}`
+                });
+
+                console.log(`[ProcessOrder] Added collection fee: RM${collectionFee}`);
+            } else if (shippingCost > 0) {
+                // Add shipping fee for delivery orders
                 const SHIPPING_FEE_VARIANT_ID = '405b8334-9248-432d-8458-5aefe0000af1'; // SKU 10071
 
-                // Loyverse API uses simple 'price' field, not 'price_money' object
                 validLineItems.push({
                     variant_id: SHIPPING_FEE_VARIANT_ID,
                     quantity: 1,

@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Package, Tag, Settings, LogOut, ExternalLink, FolderTree, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Package, Tag, Settings, LogOut, ExternalLink, FolderTree, BarChart3, CreditCard } from 'lucide-react';
 
 const NAV_ITEMS = [
     { icon: BarChart3, label: 'Dashboard', href: '/admin', exact: true },
     { icon: Package, label: 'Products', href: '/admin/products' },
     { icon: FolderTree, label: 'Categories', href: '/admin/categories' },
     { icon: Tag, label: 'Promos', href: '/admin/promos' },
+    { icon: CreditCard, label: 'Payment Settings', href: '/admin/payment-settings' },
     { icon: Settings, label: 'Settings', href: '/admin/settings' },
 ];
 

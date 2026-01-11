@@ -1,13 +1,11 @@
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
-import { loyverse } from '@/lib/loyverse';
 import { CartItem } from '@/types';
-import { redirect } from 'next/navigation';
-import { processSuccessfulOrder } from '@/actions/order-utils';
-
-// DEV MODE TOGGLE
-const IS_DEV_MODE = true;
+import { getPaymentSettings } from '@/actions/payment-settings-actions';
+import { processChipPayment } from '@/actions/payment-processors/chip';
+import { processBizAppayPayment } from '@/actions/payment-processors/bizappay';
+import { processManualPayment } from '@/actions/payment-processors/manual';
 
 export async function createCheckoutSession(prevState: any, formData: FormData) {
     const cartJson = formData.get('cart') as string;
@@ -65,7 +63,7 @@ export async function createCheckoutSession(prevState: any, formData: FormData) 
         shipping_cost: shippingCost,
         discount_amount: appliedDiscount,
         total_amount: totalAmount,
-        status: IS_DEV_MODE ? 'PAID' : 'PENDING',
+        status: 'PENDING', // Always start as PENDING, will be updated by webhook
         created_at: new Date(),
         updated_at: new Date(),
         delivery_method: deliveryMethod
@@ -87,57 +85,44 @@ export async function createCheckoutSession(prevState: any, formData: FormData) 
 
     console.log(`[Checkout] Received Shipping Provider: '${formData.get('shippingProvider')}'`);
 
-    // 4. DEVELOPMENT BYPASS
-    if (IS_DEV_MODE) {
-        console.log(`[DevMode] Bypassing Payment for Order ${orderId}`);
-        // Simulate Webhook Processing
-        await processSuccessfulOrder(orderId);
+    // 4. Get Payment Gateway Settings
+    const paymentSettings = await getPaymentSettings();
+    const activeGateway = paymentSettings.enabled_gateway;
 
-        // Redirect to Success
-        redirect(`/checkout/success?order_id=${orderId}`);
-    }
+    console.log(`[Checkout] Active Payment Gateway: ${activeGateway}`);
 
-    // 5. Create Bill with BizApp Pay (Real Mode)
+    // 5. Route to Appropriate Payment Processor
     try {
-        const bizAppUrl = 'https://bizappay.my/api/v3/bill/create';
-        const apiKey = process.env.BIZAPP_API_KEY;
-        const categoryCode = process.env.BIZAPP_CATEGORY_CODE;
-        const callbackUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhooks/bizapp`;
-        const returnUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/checkout/success?order_id=${orderId}`;
+        switch (activeGateway) {
+            case 'chip':
+                return await processChipPayment(
+                    orderId,
+                    cartItems,
+                    customer,
+                    totalAmount,
+                    shippingCost,
+                    appliedDiscount
+                );
 
-        const payload = new FormData();
-        payload.append('apiKey', apiKey || '');
-        payload.append('category', categoryCode || '');
-        payload.append('billName', `RudArk Order ${orderId}`);
-        payload.append('billDescription', `Order for ${customer.name}`);
-        payload.append('billTo', customer.name);
-        payload.append('billEmail', customer.email);
-        payload.append('billPhone', customer.phone);
-        payload.append('billAmount', totalAmount.toFixed(2));
-        payload.append('billReturnUrl', returnUrl);
-        payload.append('billCallbackUrl', callbackUrl);
-        payload.append('billExternalReferenceNo', orderId);
+            case 'bizappay':
+                return await processBizAppayPayment(
+                    orderId,
+                    cartItems,
+                    customer,
+                    totalAmount
+                );
 
-        const res = await fetch(bizAppUrl, {
-            method: 'POST',
-            body: payload,
-        });
+            case 'manual':
+                return await processManualPayment(orderId);
 
-        const data = await res.json();
-
-        if (data.url) {
-            await orderRef.update({ bizapp_bill_code: data.billCode || '' });
-            redirect(data.url);
-        } else {
-            console.error("BizApp Error", data);
-            return { error: "Payment gateway error. Please try again." };
+            default:
+                return { error: 'Invalid payment gateway configuration. Please contact support.' };
         }
-
     } catch (error) {
         if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
             throw error;
         }
-        console.error("Payment Creation Error:", error);
-        return { error: "Failed to create payment bill." };
+        console.error('[Checkout] Payment processing error:', error);
+        return { error: 'Payment processing failed. Please try again.' };
     }
 }

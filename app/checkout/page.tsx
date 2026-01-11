@@ -294,8 +294,12 @@ export default function CheckoutPage() {
 
         formData.append('appliedDiscount', appliedDiscount.toString());
         formData.append('shippingCost', finalShippingCost.toFixed(2));
-        formData.append('shippingProvider', selectedRate.provider_code);
-        formData.append('shippingService', selectedRate.service_type);
+
+        // Only append shipping provider/service for delivery method
+        if (deliveryMethod === 'delivery' && selectedRate) {
+            formData.append('shippingProvider', selectedRate.provider_code);
+            formData.append('shippingService', selectedRate.service_type);
+        }
 
         const result = await createCheckoutSession(null, formData);
         if (result?.error) {
