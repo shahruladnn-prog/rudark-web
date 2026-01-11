@@ -1,0 +1,1035 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Loyverse API",
+        "description": "Official Loyverse API documentation. This API allows you to access and manage your Loyverse account data, including items, inventory, sales, customers, and more.",
+        "version": "1.0",
+        "contact": {
+            "name": "Loyverse Developer Support",
+            "url": "https://loyverse.com/api"
+        }
+    },
+    "servers": [
+        {
+            "url": "https://api.loyverse.com/v1.0",
+            "description": "Production Server"
+        }
+    ],
+    "components": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "description": "Personal Access Token obtained from the Loyverse Back Office."
+            },
+            "oauth2": {
+                "type": "oauth2",
+                "flows": {
+                    "authorizationCode": {
+                        "authorizationUrl": "https://api.loyverse.com/oauth/authorize",
+                        "tokenUrl": "https://api.loyverse.com/oauth/token",
+                        "scopes": {
+                            "ITEMS_READ": "Read items, categories, discounts, and modifiers",
+                            "ITEMS_WRITE": "Edit items, discounts, categories, and modifiers",
+                            "INVENTORY_READ": "Read inventory",
+                            "INVENTORY_WRITE": "Edit inventory",
+                            "RECEIPTS_READ": "Read receipts",
+                            "RECEIPTS_WRITE": "Create receipts",
+                            "CUSTOMERS_READ": "Read customer information",
+                            "CUSTOMERS_WRITE": "Edit customer information",
+                            "EMPLOYEES_READ": "Read employee information",
+                            "STORES_READ": "Read store information",
+                            "PAYMENT_TYPES_READ": "Read payment types",
+                            "TAXES_READ": "Read taxes",
+                            "TAXES_WRITE": "Edit taxes",
+                            "POS_DEVICES_READ": "Read POS devices",
+                            "POS_DEVICES_WRITE": "Edit POS devices",
+                            "SUPPLIERS_READ": "Read suppliers",
+                            "SUPPLIERS_WRITE": "Edit suppliers",
+                            "MERCHANT_READ": "Read merchant information"
+                        }
+                    }
+                }
+            }
+        },
+        "schemas": {
+            "Category": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Unique identifier. If provided in POST, it updates the existing category."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Category name"
+                    },
+                    "color": {
+                        "type": "string",
+                        "enum": [
+                            "GREY",
+                            "RED",
+                            "PINK",
+                            "ORANGE",
+                            "GREEN",
+                            "BLUE",
+                            "PURPLE"
+                        ],
+                        "default": "GREY"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "readOnly": true
+                    },
+                    "deleted_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "readOnly": true
+                    }
+                },
+                "required": [
+                    "name"
+                ]
+            },
+            "Item": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "item_name": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "handle": {
+                        "type": "string"
+                    },
+                    "category_id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "track_stock": {
+                        "type": "boolean",
+                        "default": false
+                    },
+                    "sold_by_weight": {
+                        "type": "boolean",
+                        "default": false
+                    },
+                    "is_composite": {
+                        "type": "boolean"
+                    },
+                    "variants": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "variant_id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                },
+                                "item_id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                },
+                                "sku": {
+                                    "type": "string"
+                                },
+                                "cost": {
+                                    "type": "number"
+                                },
+                                "price": {
+                                    "type": "number"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "Customer": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string"
+                    },
+                    "phone_number": {
+                        "type": "string"
+                    },
+                    "address": {
+                        "type": "string"
+                    },
+                    "city": {
+                        "type": "string"
+                    },
+                    "note": {
+                        "type": "string"
+                    },
+                    "total_points": {
+                        "type": "number",
+                        "readOnly": true
+                    }
+                },
+                "required": [
+                    "name"
+                ]
+            },
+            "Receipt": {
+                "type": "object",
+                "properties": {
+                    "receipt_number": {
+                        "type": "string",
+                        "readOnly": true
+                    },
+                    "receipt_type": {
+                        "type": "string",
+                        "enum": [
+                            "SALE",
+                            "REFUND"
+                        ]
+                    },
+                    "store_id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "customer_id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "total_money": {
+                        "type": "number"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "line_items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "item_id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                },
+                                "variant_id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                },
+                                "quantity": {
+                                    "type": "number"
+                                },
+                                "price": {
+                                    "type": "number"
+                                }
+                            }
+                        }
+                    },
+                    "payments": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "payment_type_id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                },
+                                "money_amount": {
+                                    "type": "number"
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "CASH",
+                                        "CARD",
+                                        "OTHER"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "paths": {
+        "/categories": {
+            "get": {
+                "summary": "Get a list of categories",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "ITEMS_READ"
+                        ]
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "show_deleted",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of categories",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "categories": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Category"
+                                            }
+                                        },
+                                        "cursor": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Create or Update a Category",
+                "description": "Create a new category. If 'id' is provided in the body, it updates the existing category.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "ITEMS_WRITE"
+                        ]
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Category"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Category created/updated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Category"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/categories/{category_id}": {
+            "get": {
+                "summary": "Get a single category",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "ITEMS_READ"
+                        ]
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "category_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Category details",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Category"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete a category",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "ITEMS_WRITE"
+                        ]
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "category_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Category deleted",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "deleted_object_ids": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/items": {
+            "get": {
+                "summary": "Get a list of items",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "ITEMS_READ"
+                        ]
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "show_deleted",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of items",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Item"
+                                            }
+                                        },
+                                        "cursor": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Create or Update an Item",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "ITEMS_WRITE"
+                        ]
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Item"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Item created/updated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Item"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/items/{item_id}": {
+            "get": {
+                "summary": "Get a single item",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "ITEMS_READ"
+                        ]
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "item_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Item details",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Item"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete an item",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "ITEMS_WRITE"
+                        ]
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "item_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Item deleted"
+                    }
+                }
+            }
+        },
+        "/inventory": {
+            "get": {
+                "summary": "Get Inventory Levels",
+                "description": "Fetch inventory levels for specific variants.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "INVENTORY_READ"
+                        ]
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "variant_ids",
+                        "in": "query",
+                        "description": "Comma-separated list of variant IDs",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Inventory levels",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "inventory_levels": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "variant_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "store_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "in_stock": {
+                                                        "type": "number"
+                                                    },
+                                                    "updated_at": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Batch Update Inventory",
+                "description": "Update inventory levels for multiple variants.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "INVENTORY_WRITE"
+                        ]
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "inventory_levels": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "variant_id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "store_id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "stock_after": {
+                                                    "type": "number"
+                                                }
+                                            },
+                                            "required": [
+                                                "variant_id",
+                                                "store_id",
+                                                "stock_after"
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Inventory updated successfully"
+                    }
+                }
+            }
+        },
+        "/receipts": {
+            "get": {
+                "summary": "Get a list of receipts",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "RECEIPTS_READ"
+                        ]
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "store_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "order",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of receipts",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "receipts": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Receipt"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Create a Receipt",
+                "description": "Create a new sales receipt or refund.",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "RECEIPTS_WRITE"
+                        ]
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Receipt"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Receipt created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Receipt"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/customers": {
+            "get": {
+                "summary": "Get a list of customers",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "CUSTOMERS_READ"
+                        ]
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of customers",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "customers": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Customer"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Create or Update a Customer",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "CUSTOMERS_WRITE"
+                        ]
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Customer"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Customer created/updated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Customer"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/customers/{customer_id}": {
+            "get": {
+                "summary": "Get a single customer",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "CUSTOMERS_READ"
+                        ]
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "customer_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Customer details",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Customer"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete a customer",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "CUSTOMERS_WRITE"
+                        ]
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "customer_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Customer deleted"
+                    }
+                }
+            }
+        },
+        "/stores": {
+            "get": {
+                "summary": "Get a list of stores",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "oauth2": [
+                            "STORES_READ"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of stores",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "stores": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "address": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
