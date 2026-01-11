@@ -12,8 +12,24 @@ const NAV_ITEMS = [
     { icon: Settings, label: 'Settings', href: '/admin/settings' },
 ];
 
+import { getAuth, signOut } from 'firebase/auth';
+import { app } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
+
 export default function AdminSidebar() {
     const pathname = usePathname();
+    const router = useRouter();
+
+    const handleLogout = async () => {
+        try {
+            const auth = getAuth(app);
+            await signOut(auth);
+            router.push('/login');
+        } catch (error) {
+            console.error("Logout Error:", error);
+            alert("Failed to logout.");
+        }
+    };
 
     return (
         <aside className="w-64 bg-rudark-carbon border-r border-rudark-grey h-screen flex flex-col fixed left-0 top-0 z-50">
@@ -54,7 +70,10 @@ export default function AdminSidebar() {
                     <ExternalLink size={18} />
                     <span className="font-condensed uppercase tracking-wide">View Live Site</span>
                 </Link>
-                <button className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-900/20 rounded-sm transition-colors">
+                <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-900/20 rounded-sm transition-colors"
+                >
                     <LogOut size={18} />
                     <span className="font-condensed uppercase tracking-wide">Logout</span>
                 </button>

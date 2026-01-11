@@ -1,18 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Save, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { getPromo, savePromo } from '@/actions/promo-actions';
 
 interface PromoEditorProps {
-    params: {
+    params: Promise<{
         id: string;
-    }
+    }>
 }
 
 export default function PromoEditor({ params }: PromoEditorProps) {
+    // Unwrap async params (Next.js 15 requirement)
+    const { id } = use(params);
+
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(true);
@@ -26,8 +29,8 @@ export default function PromoEditor({ params }: PromoEditorProps) {
 
     useEffect(() => {
         const load = async () => {
-            if (params.id && params.id !== 'new') {
-                const data = await getPromo(params.id);
+            if (id && id !== 'new') {
+                const data = await getPromo(id);
                 if (data) {
                     setFormData({
                         code: data.code,
@@ -41,14 +44,14 @@ export default function PromoEditor({ params }: PromoEditorProps) {
             setFetching(false);
         };
         load();
-    }, [params.id]);
+    }, [id]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
 
         const res = await savePromo({
-            id: params.id,
+            id: id,
             ...formData
         });
 
@@ -70,7 +73,7 @@ export default function PromoEditor({ params }: PromoEditorProps) {
 
             <div className="bg-rudark-carbon border border-rudark-grey p-8 rounded-sm shadow-xl">
                 <h1 className="text-3xl font-condensed font-bold text-white uppercase mb-8 pb-4 border-b border-rudark-grey">
-                    {params.id === 'new' ? 'Issue New Protocol' : 'Edit Protocol'}
+                    {id === 'new' ? 'Issue New Protocol' : 'Edit Protocol'}
                 </h1>
 
                 <form onSubmit={handleSubmit} className="space-y-6">

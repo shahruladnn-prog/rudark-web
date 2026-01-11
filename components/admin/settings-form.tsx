@@ -93,6 +93,70 @@ export default function SettingsForm({ initialData }: { initialData: StoreSettin
                     </div>
                 </div>
 
+                {/* Shipping Settings */}
+                <div className="bg-rudark-carbon p-6 rounded-sm border border-rudark-grey space-y-6">
+                    <div className="flex items-center gap-3 text-rudark-volt mb-2">
+                        <Receipt size={20} />
+                        <h3 className="font-condensed font-bold uppercase tracking-wide text-lg">Shipping Settings</h3>
+                    </div>
+                    <p className="text-xs text-gray-500 mb-4">Used for ParcelAsia sender details</p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <label className="text-xs text-gray-400 font-mono uppercase">Phone Number</label>
+                            <input
+                                type="tel"
+                                value={formData.phone || ''}
+                                onChange={(e) => updateField('phone', e.target.value)}
+                                placeholder="e.g. 01124077231"
+                                className="w-full bg-rudark-matte text-white px-4 py-3 border border-rudark-grey focus:border-rudark-volt focus:outline-none font-mono"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs text-gray-400 font-mono uppercase">Postcode</label>
+                            <input
+                                type="text"
+                                value={formData.postcode || ''}
+                                onChange={(e) => updateField('postcode', e.target.value)}
+                                placeholder="e.g. 31600"
+                                maxLength={5}
+                                className="w-full bg-rudark-matte text-white px-4 py-3 border border-rudark-grey focus:border-rudark-volt focus:outline-none font-mono"
+                            />
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                            <label className="text-xs text-gray-400 font-mono uppercase">Address Line 1</label>
+                            <input
+                                type="text"
+                                value={formData.address_line_1 || ''}
+                                onChange={(e) => updateField('address_line_1', e.target.value)}
+                                placeholder="e.g. LOT 10846"
+                                className="w-full bg-rudark-matte text-white px-4 py-3 border border-rudark-grey focus:border-rudark-volt focus:outline-none"
+                            />
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                            <label className="text-xs text-gray-400 font-mono uppercase">Address Line 2</label>
+                            <input
+                                type="text"
+                                value={formData.address_line_2 || ''}
+                                onChange={(e) => updateField('address_line_2', e.target.value)}
+                                placeholder="e.g. Jalan Besar, Kampung Chulek"
+                                className="w-full bg-rudark-matte text-white px-4 py-3 border border-rudark-grey focus:border-rudark-volt focus:outline-none"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs text-gray-400 font-mono uppercase">Shipment Send Method</label>
+                            <select
+                                value={formData.send_method || 'pickup'}
+                                onChange={(e) => updateField('send_method', e.target.value)}
+                                className="w-full bg-rudark-matte text-white px-4 py-3 border border-rudark-grey focus:border-rudark-volt focus:outline-none"
+                            >
+                                <option value="pickup">Pickup (Courier collects)</option>
+                                <option value="dropoff">Drop-off (Walk-in)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Announcement Bar */}
                 <div className="bg-rudark-carbon p-6 rounded-sm border border-rudark-grey space-y-6">
                     <div className="flex items-center gap-3 text-rudark-volt mb-2">

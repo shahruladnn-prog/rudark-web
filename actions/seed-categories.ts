@@ -110,6 +110,7 @@ export async function seedCategories() {
         console.log("Starting Category Seed...");
         const batch = adminDb.batch();
 
+        let index = 0;
         for (const cat of SEED_DATA.website_structure.main_navigation) {
             const ref = adminDb.collection('categories').doc(cat.slug);
 
@@ -126,15 +127,28 @@ export async function seedCategories() {
                 slug: cat.slug,
                 description: cat.description,
                 subcategories: subcategories,
-                updated_at: new Date()
+                updated_at: new Date(),
+                order: index++ // Crucial for orderBy('order') query
             });
         }
 
         await batch.commit();
-        console.log("Category Seed Complete.");
-        return { success: true };
-    } catch (error) {
-        console.error("Seed Error:", error);
-        return { success: false, error: 'Seed failed' };
+        console.log("[Seed] Batch Commit Successful (Written to Real DB).");
+
+        // Clear cache so UI updates immediately
+        try {
+            // Dynamic import to avoid build issues if mixed envs
+            const { revalidatePath } = await import('next/cache');
+            revalidatePath('/admin/categories', 'page');
+            revalidatePath('/', 'layout');
+            console.log("[Seed] Cache Revalidated.");
+        } catch (e) {
+            console.error("[Seed] Revalidate Error:", e);
+        }
+
+        return { success: true, count: SEED_DATA.website_structure.main_navigation.length };
+    } catch (error: any) {
+        console.error("[Seed] FATAL ERROR:", error);
+        return { success: false, error: error.message || 'Unknown Seed Error' };
     }
 }

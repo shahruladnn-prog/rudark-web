@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { RefreshCw } from 'lucide-react';
-import { syncInventory } from '@/actions/sync';
+import { syncLoyverseToFirebase } from '@/actions/admin-sync';
 import { useRouter } from 'next/navigation';
 
 export default function SyncButton() {
@@ -10,16 +10,23 @@ export default function SyncButton() {
     const router = useRouter();
 
     const handleSync = async () => {
-        if (!confirm('This will fetch latest inventory from Loyverse. Content will NOT be overwritten. Continue?')) return;
+        if (!confirm('This will fetch latest inventory from Loyverse API. Content will NOT be overwritten. Continue?')) return;
 
         setSyncing(true);
-        const res = await syncInventory();
+        try {
+            const stats = await syncLoyverseToFirebase();
 
-        if (res.success) {
-            alert(`Sync Complete!\nCreated: ${res.stats?.created}\nUpdated: ${res.stats?.updated}`);
-            router.refresh();
-        } else {
-            alert('Sync Failed');
+            if (stats.errors.length === 0) {
+                alert(`Sync Complete!\nFetched: ${stats.total_items_fetched}\nCreated: ${stats.created}\nUpdated: ${stats.updated}`);
+                router.refresh();
+            } else {
+                alert(`Sync Completed with Errors:\n${stats.errors.join('\n')}`);
+                // Still refresh to show partial success
+                router.refresh();
+            }
+        } catch (err) {
+            alert('Critical Sync Failure');
+            console.error(err);
         }
         setSyncing(false);
     };

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Plus, Edit, Trash2, FolderTree } from 'lucide-react';
 import { getCategories, deleteCategory } from '@/actions/category-actions';
+import { seedCategories } from '@/actions/seed-categories';
 
 export default function CategoriesPage() {
     const [categories, setCategories] = useState<any[]>([]);
@@ -13,6 +14,22 @@ export default function CategoriesPage() {
         const data = await getCategories();
         setCategories(data);
         setLoading(false);
+    };
+
+    const handleSeed = async () => {
+        setLoading(true);
+        try {
+            const res = await seedCategories();
+            if (res.success) {
+                // @ts-ignore
+                alert(`Success! Created ${res.count} categories. Page will refresh.`);
+                await load();
+            } else {
+                alert("Error Seeding: " + res.error);
+            }
+        } catch (e) {
+            alert("Error invoking action: " + e);
+        }
     };
 
     useEffect(() => {
@@ -38,10 +55,29 @@ export default function CategoriesPage() {
                         Organize website navigation and product structure.
                     </p>
                 </div>
-                <Link href="/admin/categories/new" className="flex items-center gap-2 bg-rudark-volt text-black px-6 py-2 rounded-sm font-condensed uppercase font-bold tracking-wide hover:bg-white transition-colors">
-                    <Plus size={18} />
-                    New Category
-                </Link>
+                <div className="flex gap-4">
+                    <button
+                        onClick={async () => {
+                            const { testDatabaseConnection } = await import('@/actions/test-db');
+                            const res = await testDatabaseConnection();
+                            alert(JSON.stringify(res, null, 2));
+                        }}
+                        className="flex items-center gap-2 border border-rudark-volt text-rudark-volt px-4 py-2 rounded-sm font-condensed uppercase font-bold text-xs"
+                    >
+                        Test DB
+                    </button>
+                    <button
+                        onClick={handleSeed}
+                        className="flex items-center gap-2 border border-rudark-grey text-gray-300 px-6 py-2 rounded-sm font-condensed uppercase font-bold tracking-wide hover:text-white hover:border-white transition-colors"
+                    >
+                        <FolderTree size={18} />
+                        Reset to Defaults
+                    </button>
+                    <Link href="/admin/categories/new" className="flex items-center gap-2 bg-rudark-volt text-black px-6 py-2 rounded-sm font-condensed uppercase font-bold tracking-wide hover:bg-white transition-colors">
+                        <Plus size={18} />
+                        New Category
+                    </Link>
+                </div>
             </div>
 
             {/* List */}

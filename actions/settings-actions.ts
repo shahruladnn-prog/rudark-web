@@ -17,7 +17,12 @@ export const getSettings = unstable_cache(
                 announcementText: "Welcome to the official Rud'Ark store.",
                 announcementEnabled: true,
                 businessAddress: "",
-                taxRate: 0
+                taxRate: 0,
+                phone: "",
+                address_line_1: "",
+                address_line_2: "",
+                postcode: "",
+                send_method: "pickup"
             };
         } catch (error) {
             console.error("Error fetching settings:", error);
@@ -27,7 +32,12 @@ export const getSettings = unstable_cache(
                 announcementText: "Welcome to the official Rud'Ark store.",
                 announcementEnabled: true,
                 businessAddress: "",
-                taxRate: 0
+                taxRate: 0,
+                phone: "",
+                address_line_1: "",
+                address_line_2: "",
+                postcode: "",
+                send_method: "pickup"
             };
         }
     },

@@ -8,7 +8,10 @@ import { unstable_cache } from 'next/cache';
 export const getCategories = unstable_cache(
     async () => {
         try {
+            console.log("[getCategories] Fetching from Firestore...");
             const snapshot = await adminDb.collection('categories').orderBy('order', 'asc').get();
+            console.log(`[getCategories] Found ${snapshot.size} categories.`);
+
             return snapshot.docs.map(doc => {
                 const data = doc.data();
                 return {
@@ -23,7 +26,7 @@ export const getCategories = unstable_cache(
             return [];
         }
     },
-    ['categories-list-fixed'],
+    ['categories-list-v2'], // Changed key to force refresh
     { tags: ['categories-fixed'] }
 );
 

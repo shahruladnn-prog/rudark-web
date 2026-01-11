@@ -1,4 +1,5 @@
 import { adminDb } from '@/lib/firebase-admin';
+import { serializeDocs } from '@/lib/serialize-firestore';
 import Link from 'next/link';
 import { Product } from '@/types';
 import { Edit, Trash2, RefreshCw, Search, Plus } from 'lucide-react';
@@ -7,13 +8,18 @@ import SyncButton from '@/components/admin/sync-button';
 export const dynamic = 'force-dynamic';
 
 async function getProducts() {
-    const productsRef = adminDb.collection('products');
-    const snapshot = await productsRef.orderBy('updated_at', 'desc').get();
+    try {
+        const snapshot = await adminDb.collection('products').orderBy('created_at', 'desc').get();
 
-    return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-    })) as Product[];
+        if (snapshot.empty) {
+            return [];
+        }
+
+        return serializeDocs(snapshot);
+    } catch (error) {
+        console.error('Error fetching products:', error);
+        return [];
+    }
 }
 
 export default async function AdminProductsPage() {
@@ -29,14 +35,13 @@ export default async function AdminProductsPage() {
                         Product <span className="text-rudark-volt">Master</span>
                     </h1>
                     <p className="text-gray-400 font-mono text-sm">
-                        Manage synced inventory, pricing, and content.
+                        Manage inventory, pricing, and content.
                     </p>
                 </div>
                 <div className="flex gap-4">
-                    <SyncButton />
                     <Link href="/admin/products/new" className="flex items-center gap-2 bg-rudark-volt text-black px-6 py-2 rounded-sm font-condensed uppercase font-bold tracking-wide hover:bg-white transition-colors">
                         <Plus size={18} />
-                        New Draft
+                        New Product
                     </Link>
                 </div>
             </div>

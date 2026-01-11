@@ -12,6 +12,19 @@ export async function saveProduct(productData: Partial<Product>) {
         if (data.web_price) data.web_price = Number(data.web_price);
         if (data.promo_price) data.promo_price = Number(data.promo_price);
 
+        // Handle Shipping/Parcel Configs (Allow NULL for inheritance)
+        const numericFields = ['markup_amount', 'shipping_markup_percent', 'handling_fee', 'weight', 'width', 'length', 'height'];
+        numericFields.forEach(field => {
+            const dataAny = data as any;
+            if (dataAny[field] === '' || dataAny[field] === undefined) {
+                // If empty string, set to null to enable category inheritance
+                dataAny[field] = null;
+            } else {
+                // Otherwise cast to number
+                dataAny[field] = Number(dataAny[field]);
+            }
+        });
+
         // Add timestamps
         const now = new Date().toISOString();
         const payload = {
@@ -34,7 +47,8 @@ export async function saveProduct(productData: Partial<Product>) {
 
         revalidatePath('/admin/products');
         revalidatePath(`/admin/products/${id}`);
-        revalidatePath('/'); // Update homepage if featured
+        revalidatePath('/shop', 'layout'); // Update all shop listing pages
+        revalidatePath('/', 'layout'); // Update everything to be safe
 
         return { success: true };
     } catch (error) {

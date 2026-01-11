@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { syncLoyverseToFirebase } from '@/actions/admin-sync';
-import { seedSampleData } from '@/actions/seed'; // Fixed export name
+
 import { seedCategories } from '@/actions/seed-categories';
 
 export default function AdminPage() {
@@ -22,18 +22,6 @@ export default function AdminPage() {
         }
     };
 
-    const handleSeed = async () => {
-        setLoading(true);
-        setResult(null); // Clear previous results
-        try {
-            // seedSampleData returns { success: true, count: 5 }
-            const res = await seedSampleData();
-            alert(`Success: ${res.count} products generated.`);
-        } catch (err) {
-            alert("Error seeding products");
-        }
-        setLoading(false);
-    };
 
     const handleSeedCategories = async () => {
         setLoading(true);
@@ -50,61 +38,100 @@ export default function AdminPage() {
                     Admin <span className="text-rudark-volt">Command</span> Center
                 </h1>
 
-                <div className="space-y-8">
+                <div className="space-y-6">
                     <div>
-                        <h2 className="text-xl font-condensed font-bold mb-2 text-gray-200 uppercase">Inventory Sync</h2>
-                        <p className="text-gray-400 mb-6 text-sm">
-                            Pull products and inventory levels from Loyverse to Firebase Master Node.
-                        </p>
+                        <h2 className="text-xl font-condensed font-bold mb-4 text-gray-200 uppercase">Quick Access</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Products */}
+                            <a
+                                href="/admin/products"
+                                className="bg-rudark-charcoal border border-rudark-grey p-6 rounded hover:border-rudark-volt transition-colors group"
+                            >
+                                <h3 className="text-lg font-condensed font-bold text-white group-hover:text-rudark-volt mb-2">
+                                    📦 Products
+                                </h3>
+                                <p className="text-sm text-gray-400">
+                                    Manage inventory, variants, and pricing
+                                </p>
+                            </a>
 
-                        <button
-                            onClick={handleSync}
-                            disabled={loading}
-                            className="bg-rudark-volt text-black hover:bg-white font-condensed font-bold text-lg py-3 px-8 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 uppercase tracking-wider w-full justify-center"
-                        >
-                            {loading ? (
-                                <>
-                                    <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></span>
-                                    Syncing...
-                                </>
-                            ) : (
-                                'Initiate Sync Sequence'
-                            )}
-                        </button>
+                            {/* Categories */}
+                            <a
+                                href="/admin/categories"
+                                className="bg-rudark-charcoal border border-rudark-grey p-6 rounded hover:border-rudark-volt transition-colors group"
+                            >
+                                <h3 className="text-lg font-condensed font-bold text-white group-hover:text-rudark-volt mb-2">
+                                    📁 Categories
+                                </h3>
+                                <p className="text-sm text-gray-400">
+                                    Organize product categories
+                                </p>
+                            </a>
+
+                            {/* Shipping Settings */}
+                            <a
+                                href="/admin/shipping-settings"
+                                className="bg-rudark-charcoal border border-rudark-volt p-6 rounded hover:bg-rudark-volt hover:text-black transition-all group"
+                            >
+                                <h3 className="text-lg font-condensed font-bold text-rudark-volt group-hover:text-black mb-2">
+                                    🚚 Shipping Settings
+                                </h3>
+                                <p className="text-sm text-gray-400 group-hover:text-black">
+                                    Configure free shipping threshold
+                                </p>
+                            </a>
+
+                            {/* Collection Settings */}
+                            <a
+                                href="/admin/collection-settings"
+                                className="bg-rudark-charcoal border border-rudark-grey p-6 rounded hover:border-rudark-volt transition-colors group"
+                            >
+                                <h3 className="text-lg font-condensed font-bold text-white group-hover:text-rudark-volt mb-2">
+                                    📍 Collection Points
+                                </h3>
+                                <p className="text-sm text-gray-400">
+                                    Manage self-collection locations
+                                </p>
+                            </a>
+
+                            {/* Collection Monitor */}
+                            <a
+                                href="/admin/collections"
+                                className="bg-rudark-charcoal border border-rudark-grey p-6 rounded hover:border-rudark-volt transition-colors group"
+                            >
+                                <h3 className="text-lg font-condensed font-bold text-white group-hover:text-rudark-volt mb-2">
+                                    📦 Collection Monitor
+                                </h3>
+                                <p className="text-sm text-gray-400">
+                                    Track self-collection orders
+                                </p>
+                            </a>
+
+                            {/* Loyverse Sync */}
+                            <button
+                                onClick={handleSync}
+                                disabled={loading}
+                                className="bg-rudark-charcoal border border-rudark-grey p-6 rounded hover:border-rudark-volt transition-colors group text-left disabled:opacity-50"
+                            >
+                                <h3 className="text-lg font-condensed font-bold text-white group-hover:text-rudark-volt mb-2">
+                                    🔄 Sync Loyverse
+                                </h3>
+                                <p className="text-sm text-gray-400">
+                                    {loading ? 'Syncing...' : 'Sync inventory from Loyverse'}
+                                </p>
+                            </button>
+                        </div>
                     </div>
 
+                    {/* Sync Results */}
                     {result && (
-                        <div className={`p-4 border ${result.errors?.length ? 'bg-red-900/20 border-red-800 text-red-200' : 'bg-green-900/20 border-green-800 text-green-200'} font-mono text-sm`}>
-                            <h3 className="font-bold mb-2 uppercase">Sync Status Report:</h3>
-                            <ul className="list-disc pl-5 space-y-1">
-                                <li>Items Fetched: {result.total_items_fetched}</li>
-                                <li>New Records: {result.created}</li>
-                                <li>Updated Records: {result.updated}</li>
-                                {result.errors?.length > 0 && (
-                                    <li className="font-bold text-red-500">Errors: {result.errors.length}</li>
-                                )}
-                            </ul>
+                        <div className="bg-rudark-charcoal border border-rudark-volt p-4 rounded">
+                            <h3 className="text-sm font-condensed font-bold text-rudark-volt mb-2">Sync Results</h3>
+                            <pre className="text-xs text-gray-300 font-mono overflow-auto">
+                                {JSON.stringify(result, null, 2)}
+                            </pre>
                         </div>
                     )}
-
-                    <div className="mt-8 pt-8 border-t border-rudark-grey">
-                        <h2 className="text-xl font-condensed font-bold mb-2 text-gray-200 uppercase">Development Tools</h2>
-                        <p className="text-gray-400 mb-6 text-sm">
-                            Generate sample Rud'Ark products for visual testing.
-                        </p>
-                        <button
-                            onClick={async () => {
-                                setLoading(true);
-                                await seedSampleData();
-                                setLoading(false);
-                                alert('Sample data created!');
-                            }}
-                            disabled={loading}
-                            className="w-full bg-rudark-grey text-white hover:bg-white hover:text-black font-condensed font-bold text-lg py-3 px-8 transition-colors disabled:opacity-50 uppercase tracking-wider"
-                        >
-                            Generate Sample Products
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>

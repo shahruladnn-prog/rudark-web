@@ -20,9 +20,16 @@ export async function getPromos() {
         const snapshot = await adminDb.collection('promos').orderBy('created_at', 'desc').get();
         return snapshot.docs.map(doc => {
             const data = doc.data();
+            // Exclude Firestore Timestamps to prevent serialization errors
             return {
                 id: doc.id,
-                ...data,
+                code: data.code,
+                type: data.type,
+                value: data.value,
+                min_spend: data.min_spend,
+                usage_limit: data.usage_limit,
+                usage_count: data.usage_count,
+                active: data.active,
                 created_at: data.created_at?.toDate?.().toISOString() || null
             };
         });
@@ -37,11 +44,18 @@ export async function getPromo(id: string): Promise<PromoCode | null> {
         const doc = await adminDb.collection('promos').doc(id).get();
         if (!doc.exists) return null;
         const data = doc.data()!;
+        // Exclude Firestore Timestamps to prevent serialization errors
         return {
             id: doc.id,
-            ...data,
+            code: data.code,
+            type: data.type,
+            value: data.value,
+            min_spend: data.min_spend,
+            usage_limit: data.usage_limit,
+            usage_count: data.usage_count,
+            active: data.active,
             created_at: data.created_at?.toDate?.().toISOString() || null
-        } as unknown as PromoCode;
+        } as PromoCode;
     } catch (error) {
         return null;
     }
