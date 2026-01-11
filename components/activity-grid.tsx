@@ -18,7 +18,7 @@ export default function ActivityGrid({ categories = [] }: ActivityGridProps) {
         <section className="bg-rudark-matte py-20 px-4 md:px-8">
             <div className="max-w-7xl mx-auto mb-12 flex justify-between items-end border-b border-rudark-grey pb-4">
                 <h2 className="text-4xl md:text-5xl font-condensed font-bold text-white uppercase">
-                    Shop By <span className="text-rudark-volt">Activity</span>
+                    Shop By <span className="text-rudark-volt">Categories</span>
                 </h2>
                 <Link href="/shop" className="hidden md:flex items-center text-gray-400 hover:text-white uppercase tracking-widest text-sm font-bold transition-colors">
                     View All Categories <ArrowRight size={16} className="ml-2" />

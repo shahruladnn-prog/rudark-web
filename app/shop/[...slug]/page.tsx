@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getProductsBySlug } from '@/actions/shop-actions';
 import { Product } from '@/types';
 import Link from 'next/link';
+import Image from 'next/image';
 import AddToCartButton from '@/components/add-to-cart-button'; // Refactor this to be cleaner if needed
 
 export default function ShopCategoryPage({ params }: { params: { slug: string[] } }) {
@@ -17,8 +18,8 @@ export default function ShopCategoryPage({ params }: { params: { slug: string[] 
             const { slug } = await params; // Await just in case
             const data = await getProductsBySlug(slug);
             setProducts(data.products);
-            setTitle(data.subcategoryName ? `${data.categoryName} / ${data.subcategoryName}` : data.categoryName || 'Shop');
-            // Diagnostics removed
+            const subcatName = 'subcategoryName' in data ? data.subcategoryName : null;
+            setTitle(subcatName ? `${data.categoryName} / ${subcatName}` : data.categoryName || 'Shop');
             setLoading(false);
         };
         load();
@@ -56,10 +57,12 @@ export default function ShopCategoryPage({ params }: { params: { slug: string[] 
                         <Link href={`/product/${product.sku || product.id}`} key={product.id} className="group block bg-rudark-carbon border border-rudark-grey/30 hover:border-rudark-volt transition-all duration-300">
                             <div className="aspect-[4/5] relative overflow-hidden bg-black/50">
                                 {product.images && product.images[0] ? (
-                                    <img
+                                    <Image
                                         src={product.images[0]}
                                         alt={product.name}
-                                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+                                        fill
+                                        className="object-cover transform group-hover:scale-105 transition-transform duration-500"
+                                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-600 font-mono text-xs uppercase tracking-widest">
@@ -85,9 +88,6 @@ export default function ShopCategoryPage({ params }: { params: { slug: string[] 
                         </Link>
                     ))}
                 </div>
-
-                {/* DIAGNOSTICS */}
-// Diagnostics removed
             </div>
         </div>
     );

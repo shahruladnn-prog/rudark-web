@@ -1,19 +1,11 @@
 'use client';
 
 import { Product } from '@/types';
-import { useCart } from '@/context/cart-context';
 import Link from 'next/link';
-import { ShoppingCart } from 'lucide-react';
 import { motion } from 'framer-motion';
 
+// Component
 export default function ProductCard({ product }: { product: Product }) {
-    const { addToCart } = useCart();
-
-    const handleAddToCart = (e: React.MouseEvent) => {
-        e.preventDefault();
-        addToCart(product);
-    };
-
     const hasPromo = product.promo_price && product.promo_price > 0 && product.promo_price < product.web_price;
     const displayPrice = hasPromo ? product.promo_price : product.web_price;
 
@@ -36,6 +28,11 @@ export default function ProductCard({ product }: { product: Product }) {
                         Low Stock
                     </span>
                 )}
+                {product.stock_status === 'CONTACT_US' && (
+                    <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-1 uppercase tracking-widest">
+                        Contact Us
+                    </span>
+                )}
                 {hasPromo && (
                     <span className="bg-rudark-volt text-black text-[10px] font-bold px-2 py-1 uppercase tracking-widest">
                         Sale
@@ -53,19 +50,6 @@ export default function ProductCard({ product }: { product: Product }) {
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-600 font-mono text-xs">
                         NO IMAGE
-                    </div>
-                )}
-
-                {/* Quick Add Overlay */}
-                {product.stock_status !== 'OUT' && (
-                    <div className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-                        <button
-                            onClick={handleAddToCart}
-                            className="w-full bg-rudark-volt text-black font-condensed font-bold uppercase py-3 hover:bg-white transition-colors flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,0,0,0.5)]"
-                        >
-                            <ShoppingCart size={16} />
-                            Add To Cart
-                        </button>
                     </div>
                 )}
             </Link>

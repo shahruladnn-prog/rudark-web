@@ -152,16 +152,16 @@ export default function AnimatedLogo() {
             )}
 
             {/* Static Hero Content */}
-            <div className="relative z-20 h-full flex flex-col justify-center items-center text-center px-4 max-w-6xl mx-auto">
+            <div className="relative z-20 h-full flex flex-col justify-center pb-20 pt-32 md:pt-0 md:pb-0 items-center text-center px-4 max-w-6xl mx-auto">
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 1.2, ease: "easeOut" }}
                     className="flex flex-col items-center"
                 >
-                    <h1 className="text-7xl md:text-9xl font-condensed font-bold text-white uppercase leading-none tracking-tighter mb-10 drop-shadow-[0_0_15px_rgba(0,0,0,0.8)]">
-                        Rud'Ark<br />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-rudark-volt to-white">Pro Shop</span>
+                    <h1 className="text-5xl md:text-9xl font-condensed font-bold text-white uppercase leading-none tracking-tighter mb-6 md:mb-10 drop-shadow-[0_0_15px_rgba(0,0,0,0.8)]">
+                        <span className="font-[family-name:var(--font-black-ops)] tracking-normal">Rud'Ark</span><br />
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-rudark-volt to-white font-[family-name:var(--font-black-ops)] text-6xl md:text-[8.5rem]">PRO SHOP</span>
                     </h1>
 
                     <div className="flex flex-col md:flex-row items-center gap-6 md:gap-10 justify-center bg-black/40 backdrop-blur-sm p-8 rounded-sm border border-rudark-grey/20">
@@ -182,7 +182,7 @@ export default function AnimatedLogo() {
                         <p className="text-gray-300 font-sans text-sm md:text-base leading-relaxed max-w-sm text-center md:text-left font-medium">
                             Designed for the obsessed. Engineered for the deep.
                             <br className="hidden md:block" />
-                            <span className="text-white">Welcome to the apex of aquatic gear.</span>
+                            <span className="text-white">Welcome to the apex of adventure gear.</span>
                         </p>
                     </div>
 

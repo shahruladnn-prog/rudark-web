@@ -5,7 +5,7 @@ import { ShoppingCart, Menu, X, Search, User } from 'lucide-react';
 import { useCart } from '@/context/cart-context';
 import { useState, useEffect, useRef } from 'react';
 import MegaMenu from './mega-menu';
-import { CATEGORY_MAP } from '@/lib/categories';
+// import { CATEGORY_MAP } from '@/lib/categories'; // Removed
 import AnnouncementBar from './announcement-bar';
 
 interface NavbarProps {

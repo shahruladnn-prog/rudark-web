@@ -3,7 +3,15 @@
 import Link from 'next/link';
 import { Facebook, Instagram, Twitter, Youtube, ArrowRight } from 'lucide-react';
 
-export default function FooterRefined() {
+interface FooterProps {
+    categories?: Array<{ name: string; slug: string; product_count?: number }>;
+}
+
+export default function FooterRefined({ categories = [] }: FooterProps) {
+    // Get top 5 categories by product count
+    const topCategories = categories
+        .sort((a, b) => (b.product_count || 0) - (a.product_count || 0))
+        .slice(0, 5);
     return (
         <footer className="bg-rudark-carbon border-t border-rudark-grey text-white pt-20 pb-8 relative overflow-hidden">
 
@@ -37,17 +45,43 @@ export default function FooterRefined() {
                         </div>
 
                         <div className="flex gap-4">
-                            <Link href="#" className="p-2 bg-rudark-matte rounded-full text-gray-400 hover:text-rudark-volt hover:bg-black transition-all">
+                            <Link
+                                href="https://www.instagram.com/rudark.my/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 bg-rudark-matte rounded-full text-gray-400 hover:text-rudark-volt hover:bg-black transition-all"
+                                aria-label="Instagram"
+                            >
                                 <Instagram size={18} />
                             </Link>
-                            <Link href="#" className="p-2 bg-rudark-matte rounded-full text-gray-400 hover:text-rudark-volt hover:bg-black transition-all">
+                            <Link
+                                href="https://www.facebook.com/rudaark/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 bg-rudark-matte rounded-full text-gray-400 hover:text-rudark-volt hover:bg-black transition-all"
+                                aria-label="Facebook"
+                            >
                                 <Facebook size={18} />
                             </Link>
-                            <Link href="#" className="p-2 bg-rudark-matte rounded-full text-gray-400 hover:text-rudark-volt hover:bg-black transition-all">
+                            <Link
+                                href="https://www.youtube.com/@rudark"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 bg-rudark-matte rounded-full text-gray-400 hover:text-rudark-volt hover:bg-black transition-all"
+                                aria-label="YouTube"
+                            >
                                 <Youtube size={18} />
                             </Link>
-                            <Link href="#" className="p-2 bg-rudark-matte rounded-full text-gray-400 hover:text-rudark-volt hover:bg-black transition-all">
-                                <Twitter size={18} />
+                            <Link
+                                href="https://www.tiktok.com/@rudark.my"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 bg-rudark-matte rounded-full text-gray-400 hover:text-rudark-volt hover:bg-black transition-all"
+                                aria-label="TikTok"
+                            >
+                                <svg className="w-[18px] h-[18px] fill-current" viewBox="0 0 24 24">
+                                    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
+                                </svg>
                             </Link>
                         </div>
                     </div>
@@ -56,21 +90,51 @@ export default function FooterRefined() {
                     <div className="col-span-1 md:col-span-2">
                         <h4 className="font-condensed font-bold text-lg uppercase mb-6 text-white tracking-widest">Shop</h4>
                         <ul className="space-y-3">
-                            <li><Link href="/shop/kayaks" className="text-gray-400 hover:text-rudark-volt text-sm uppercase font-medium transition-colors">Kayaks</Link></li>
-                            <li><Link href="/shop/pfds" className="text-gray-400 hover:text-rudark-volt text-sm uppercase font-medium transition-colors">PFDs</Link></li>
-                            <li><Link href="/shop/accessories" className="text-gray-400 hover:text-rudark-volt text-sm uppercase font-medium transition-colors">Accessories</Link></li>
-                            <li><Link href="/shop/new-arrivals" className="text-gray-400 hover:text-rudark-volt text-sm uppercase font-medium transition-colors">New Arrivals</Link></li>
+                            {topCategories.length > 0 ? (
+                                <>
+                                    {topCategories.map((category) => (
+                                        <li key={category.slug}>
+                                            <Link
+                                                href={`/shop?category=${category.slug}`}
+                                                className="text-gray-400 hover:text-rudark-volt transition-colors text-sm flex justify-between items-center group"
+                                            >
+                                                <span className="uppercase">{category.name}</span>
+                                                {category.product_count !== undefined && (
+                                                    <span className="text-xs text-gray-600 group-hover:text-rudark-volt font-mono">
+                                                        ({category.product_count})
+                                                    </span>
+                                                )}
+                                            </Link>
+                                        </li>
+                                    ))}
+                                    <li className="pt-2">
+                                        <Link
+                                            href="/shop"
+                                            className="text-rudark-volt hover:text-white transition-colors text-sm uppercase font-bold flex items-center gap-1"
+                                        >
+                                            View All →
+                                        </Link>
+                                    </li>
+                                </>
+                            ) : (
+                                <>
+                                    <li><Link href="/shop" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm uppercase">All Products</Link></li>
+                                </>
+                            )}
                         </ul>
                     </div>
 
-                    <div className="col-span-1 md:col-span-2">
-                        <h4 className="font-condensed font-bold text-lg uppercase mb-6 text-white tracking-widest">Support</h4>
-                        <ul className="space-y-3">
-                            <li><Link href="#" className="text-gray-400 hover:text-rudark-volt text-sm uppercase font-medium transition-colors">Order Status</Link></li>
-                            <li><Link href="#" className="text-gray-400 hover:text-rudark-volt text-sm uppercase font-medium transition-colors">Returns</Link></li>
-                            <li><Link href="#" className="text-gray-400 hover:text-rudark-volt text-sm uppercase font-medium transition-colors">Warranty</Link></li>
-                            <li><Link href="#" className="text-gray-400 hover:text-rudark-volt text-sm uppercase font-medium transition-colors">Contact Us</Link></li>
-                        </ul>
+                    {/* Support */}
+                    <div>
+                        <h4 className="text-lg font-bold font-condensed mb-6 uppercase tracking-wider text-white border-b border-rudark-grey inline-block pb-2">Support</h4>
+                        <div className="flex flex-col space-y-3 font-mono">
+                            <Link href="/order-tracking" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm uppercase">
+                                Order Status
+                            </Link>
+                            <Link href="/returns" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm">RETURNS</Link>
+                            <Link href="/warranty" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm">WARRANTY</Link>
+                            <Link href="/contact" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm">CONTACT US</Link>
+                        </div>
                     </div>
 
                     <div className="col-span-1 md:col-span-3">

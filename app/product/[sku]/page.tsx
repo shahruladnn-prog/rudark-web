@@ -1,7 +1,9 @@
 import { adminDb } from '@/lib/firebase-admin';
+import { serializeDoc } from '@/lib/serialize-firestore';
 import { Product } from '@/types';
 import { notFound } from 'next/navigation';
-import AddToCartButton from '@/components/add-to-cart-button';
+import { loyverse } from '@/lib/loyverse';
+import ProductDetails from '@/components/product-details';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,22 +14,48 @@ async function getProduct(sku: string) {
 
         if (snapshot.empty) return null;
 
-        const data = snapshot.docs[0].data();
-        return {
-            id: snapshot.docs[0].id,
-            sku: data.sku,
-            name: data.name,
-            web_price: data.web_price,
-            description: data.description,
-            images: data.images,
-            category: data.category,
-            stock_status: data.stock_status,
-            loyverse_item_id: data.loyverse_item_id,
-            loyverse_variant_id: data.loyverse_variant_id
-        } as Product;
+        return serializeDoc<Product>(snapshot.docs[0]);
     } catch (error) {
         console.error('Error fetching product:', error);
         return null;
+    }
+}
+
+async function getVariantStock(product: Product): Promise<Record<string, number>> {
+    try {
+        // Fetch items and inventory from Loyverse
+        const [itemsData, inventoryData] = await Promise.all([
+            loyverse.getItems(),
+            loyverse.getInventory()
+        ]);
+
+        // Build variant_id → stock map
+        const stockMap = new Map<string, number>();
+        inventoryData.inventory_levels.forEach((inv: any) => {
+            stockMap.set(inv.variant_id, inv.in_stock || 0);
+        });
+
+        // Map product variant SKUs to stock
+        const variantStock: Record<string, number> = {};
+
+        if (product.variants && product.variants.length > 0) {
+            for (const variant of product.variants) {
+                // Find variant_id by SKU
+                for (const item of itemsData.items) {
+                    const loyverseVariant = item.variants.find((v: any) => v.sku === variant.sku);
+                    if (loyverseVariant) {
+                        const stock = stockMap.get(loyverseVariant.variant_id) || 0;
+                        variantStock[variant.sku] = stock;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return variantStock;
+    } catch (error) {
+        console.error('Error fetching variant stock:', error);
+        return {};
     }
 }
 
@@ -39,10 +67,13 @@ export default async function ProductPage({ params }: { params: Promise<{ sku: s
         notFound();
     }
 
+    // Fetch stock for all variants
+    const variantStock = await getVariantStock(product);
+
     const isOutOfStock = product.stock_status === 'OUT';
 
     return (
-        <div className="min-h-screen bg-rudark-matte text-white py-12 px-4 md:px-8">
+        <div className="min-h-screen bg-rudark-matte text-white pt-32 pb-20 px-4 md:px-8 bg-[url('/grid-mesh.png')] bg-fixed">
             <div className="max-w-6xl mx-auto bg-rudark-carbon rounded-sm shadow-xl overflow-hidden border border-rudark-grey/30">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-0">
 
@@ -89,45 +120,20 @@ export default async function ProductPage({ params }: { params: Promise<{ sku: s
                         )}
 
                         {product.stock_status !== 'IN_STOCK' && (
-                            <div className={`absolute top-4 left-4 px-3 py-1 text-sm font-bold uppercase tracking-wider z-20 ${isOutOfStock ? 'bg-red-600 text-white' : 'bg-orange-500 text-black'
+                            <div className={`absolute top-4 left-4 px-3 py-1 text-sm font-bold uppercase tracking-wider z-20 ${product.stock_status === 'OUT' ? 'bg-red-600 text-white' :
+                                product.stock_status === 'CONTACT_US' ? 'bg-blue-600 text-white' :
+                                    'bg-orange-500 text-black'
                                 }`}>
-                                {isOutOfStock ? 'Sold Out' : 'Low Stock'}
+                                {product.stock_status === 'OUT' ? 'Sold Out' :
+                                    product.stock_status === 'CONTACT_US' ? 'Contact Us' :
+                                        'Low Stock'}
                             </div>
                         )}
                     </div>
 
                     {/* Details Section */}
-                    <div className="p-8 md:p-12 flex flex-col justify-center">
-                        <div className="mb-2 text-sm text-rudark-volt font-mono tracking-[0.2em] uppercase">
-              // {product.category || 'Gear'}
-                        </div>
-
-                        <h1 className="text-4xl md:text-5xl font-condensed font-bold text-white mb-4 uppercase leading-none">
-                            {product.name}
-                        </h1>
-
-                        <div className="text-3xl font-condensed font-bold text-white mb-8 border-b border-rudark-grey/30 pb-4 inline-block">
-                            RM {product.web_price.toFixed(2)}
-                        </div>
-
-                        <div className="prose prose-invert prose-p:text-gray-400 prose-p:font-light prose-headings:font-condensed prose-headings:uppercase mb-8 max-w-none">
-                            {/* Render markdown description logic usually goes here, simplified for now */}
-                            <div className="whitespace-pre-line leading-relaxed">
-                                {product.description || "No description available."}
-                            </div>
-                        </div>
-
-                        <div className="mt-auto pt-8 border-t border-rudark-grey/30">
-                            <div className="flex flex-col gap-4">
-                                <div className="flex items-center gap-4 text-xs font-mono text-gray-500 mb-2 uppercase">
-                                    <span>SKU: {product.sku}</span>
-                                    <span>|</span>
-                                    <span>Status: <span className={isOutOfStock ? "text-red-500" : "text-rudark-volt"}>{product.stock_status}</span></span>
-                                </div>
-
-                                <AddToCartButton product={product} />
-                            </div>
-                        </div>
+                    <div className="p-8 md:p-12">
+                        <ProductDetails product={product} variantStock={variantStock} />
                     </div>
 
                 </div>

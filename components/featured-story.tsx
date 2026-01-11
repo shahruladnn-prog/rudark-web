@@ -18,7 +18,7 @@ export default function FeaturedStory() {
 
                 {/* Left Content (Empty for image visibility or quote) */}
                 <div className="hidden md:block">
-                    <blockquote className="text-4xl font-condensed font-bold uppercase text-white/20 leading-none">
+                    <blockquote className="text-4xl font-condensed font-bold uppercase text-white/80 leading-none drop-shadow-md">
                         "The water doesn't care about your preparation. But we do."
                     </blockquote>
                 </div>
