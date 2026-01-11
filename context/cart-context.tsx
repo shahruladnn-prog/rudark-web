@@ -5,9 +5,9 @@ import { CartItem, Product } from '@/types';
 
 interface CartContextType {
     cart: CartItem[];
-    addToCart: (product: Product, quantity?: number) => void;
-    removeFromCart: (sku: string) => void;
-    updateQuantity: (sku: string, quantity: number) => void;
+    addToCart: (product: Product, quantity?: number, selected_options?: Record<string, string>) => void;
+    removeFromCart: (sku: string, selected_options?: Record<string, string>) => void;
+    updateQuantity: (sku: string, quantity: number, selected_options?: Record<string, string>) => void;
     clearCart: () => void;
     subtotal: number;
     totalItems: number;
@@ -39,33 +39,44 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
     }, [cart, mounted]);
 
-    const addToCart = (product: Product, quantity = 1) => {
+    const addToCart = (product: Product, quantity = 1, selected_options?: Record<string, string>) => {
         setCart((prev) => {
-            const existing = prev.find((item) => item.sku === product.sku);
-            if (existing) {
-                return prev.map((item) =>
-                    item.sku === product.sku
-                        ? { ...item, quantity: item.quantity + quantity }
-                        : item
-                );
+            // Find item with same SKU AND same options
+            const existingIndex = prev.findIndex((item) => {
+                const sameSku = item.sku === product.sku;
+                const sameOptions = JSON.stringify(item.selected_options || {}) === JSON.stringify(selected_options || {});
+                return sameSku && sameOptions;
+            });
+
+            if (existingIndex > -1) {
+                const newCart = [...prev];
+                newCart[existingIndex].quantity += quantity;
+                return newCart;
             }
-            return [...prev, { ...product, quantity }];
+            return [...prev, { ...product, quantity, selected_options }];
         });
     };
 
-    const removeFromCart = (sku: string) => {
-        setCart((prev) => prev.filter((item) => item.sku !== sku));
+    const removeFromCart = (sku: string, selected_options?: Record<string, string>) => {
+        setCart((prev) => prev.filter((item) => {
+            const sameSku = item.sku === sku;
+            const sameOptions = JSON.stringify(item.selected_options || {}) === JSON.stringify(selected_options || {});
+            // Keep if NOT same (so remove if SAME)
+            return !(sameSku && sameOptions);
+        }));
     };
 
-    const updateQuantity = (sku: string, quantity: number) => {
+    const updateQuantity = (sku: string, quantity: number, selected_options?: Record<string, string>) => {
         if (quantity <= 0) {
-            removeFromCart(sku);
+            removeFromCart(sku, selected_options);
             return;
         }
         setCart((prev) =>
-            prev.map((item) =>
-                item.sku === sku ? { ...item, quantity } : item
-            )
+            prev.map((item) => {
+                const sameSku = item.sku === sku;
+                const sameOptions = JSON.stringify(item.selected_options || {}) === JSON.stringify(selected_options || {});
+                return (sameSku && sameOptions) ? { ...item, quantity } : item;
+            })
         );
     };
 

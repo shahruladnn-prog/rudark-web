@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { CheckCircle, MessageSquare } from 'lucide-react';
 import { useCart } from '@/context/cart-context';
@@ -11,11 +11,13 @@ export default function SuccessPage() {
     const orderId = searchParams.get('order_id');
     const { clearCart } = useCart();
     const [mounted, setMounted] = useState(false);
+    const clearedRef = useRef(false);
 
     useEffect(() => {
         setMounted(true);
-        if (orderId) {
+        if (orderId && !clearedRef.current) {
             clearCart();
+            clearedRef.current = true;
         }
     }, [orderId, clearCart]);
 
@@ -30,7 +32,7 @@ export default function SuccessPage() {
     }
 
     const whatsappMessage = `Hi RudArk, I just paid for Order #${orderId}. Can you check?`;
-    const whatsappLink = `https://wa.me/60123456789?text=${encodeURIComponent(whatsappMessage)}`;
+    const whatsappLink = `https://wa.me/60135518857?text=${encodeURIComponent(whatsappMessage)}`;
 
     return (
         <div className="min-h-screen bg-rudark-matte text-white flex flex-col items-center justify-center p-4">
@@ -45,7 +47,7 @@ export default function SuccessPage() {
                 <p className="mb-4 text-lg">Mission approved.</p>
                 <p className="text-sm font-light text-gray-500">
                     We have received your requisition details and payment confirmation.
-                    Stand by for shipping notification.
+                    Stand by for shipping notification. Please allow up to 24 hours for tracking to be updated.
                 </p>
             </div>
 
@@ -59,6 +61,13 @@ export default function SuccessPage() {
                     <MessageSquare size={20} />
                     Confirm on WhatsApp
                 </a>
+
+                <Link
+                    href={`/orders/${orderId}`}
+                    className="flex items-center justify-center w-full bg-rudark-volt hover:bg-rudark-volt/90 text-rudark-black font-condensed font-bold py-4 px-6 rounded-sm transition-colors uppercase tracking-wider"
+                >
+                    View Order Status
+                </Link>
 
                 <Link
                     href="/"

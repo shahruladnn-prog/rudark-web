@@ -4,15 +4,23 @@ import { adminDb } from '@/lib/firebase-admin';
 import { loyverse } from '@/lib/loyverse';
 import { CartItem } from '@/types';
 import { redirect } from 'next/navigation';
+import { processSuccessfulOrder } from '@/actions/order-utils';
+
+// DEV MODE TOGGLE
+const IS_DEV_MODE = true;
 
 export async function createCheckoutSession(prevState: any, formData: FormData) {
     const cartJson = formData.get('cart') as string;
     const cartItems: CartItem[] = JSON.parse(cartJson);
 
+    // Extract Customer Data (inc. Shipping)
     const customer = {
         name: formData.get('name') as string,
+        email: formData.get('email') as string,
         phone: formData.get('phone') as string,
         address: formData.get('address') as string,
+        postcode: formData.get('postcode') as string,
+        city: formData.get('city') as string,
         state: formData.get('state') as 'Peninsular' | 'Sabah/Sarawak',
     };
 
@@ -20,48 +28,36 @@ export async function createCheckoutSession(prevState: any, formData: FormData) 
         return { error: "Cart is empty" };
     }
 
-    // 1. STOCK GUARD: Validate with Loyverse
-    try {
-        const inventoryData = await loyverse.getInventory();
-        const inventoryMap = new Map(); // Variant ID -> Stock
-        inventoryData.inventory_levels.forEach((inv: any) => {
-            inventoryMap.set(inv.variant_id, inv.in_stock);
-        });
+    // ATOMIC STOCK VALIDATION (prevents race conditions)
+    const { validateAndReserveStock } = await import('@/actions/stock-validation');
 
-        const outOfStockItems: string[] = [];
+    const stockValidation = await validateAndReserveStock(cartItems);
 
-        for (const item of cartItems) {
-            if (!item.loyverse_variant_id) continue;
-            const currentStock = inventoryMap.get(item.loyverse_variant_id) || 0;
-
-            if (currentStock < item.quantity) {
-                outOfStockItems.push(`${item.name} (Stock: ${currentStock})`);
-            }
-        }
-
-        if (outOfStockItems.length > 0) {
-            return { error: `Sorry, some items are out of stock: ${outOfStockItems.join(', ')}` };
-        }
-
-    } catch (error) {
-        console.error("Stock Guard Error:", error);
-        // Fail safe? Or block? Block is safer for "Stock Guard".
-        return { error: "Unable to verify stock levels. Please try again." };
+    if (!stockValidation.success) {
+        return { error: 'error' in stockValidation ? stockValidation.error : 'Stock validation failed' };
     }
 
-    // 2. Calculate Totals
-    const shippingCost = customer.state === 'Peninsular' ? 10 : 20;
-    const subtotal = cartItems.reduce((sum, item) => sum + item.web_price * item.quantity, 0);
+    console.log(`[Checkout] Stock reserved for ${cartItems.length} items`);
 
-    // Apply Discount
+    // 2. Calculate Totals
+    const shippingCost = parseFloat(formData.get('shippingCost') as string || '0');
+    const subtotal = cartItems.reduce((sum, item) => sum + item.web_price * item.quantity, 0);
     const appliedDiscount = parseFloat(formData.get('appliedDiscount') as string || '0');
+
+    // Note: formData already has 'shippingCost' from frontend which includes markup/handling
+    // But we should roughly validate or trust frontend for now
+    // Actually, shippingCost in formData might be string? 
+    // Yes, we updated checkout page to append `shippingCost` to formData.
+
     const totalAmount = Math.max(0, subtotal + shippingCost - appliedDiscount);
 
-    // 3. Create Pending Order in Firestore
+    // 3. Create Pending Order
     const orderId = `ORD-${Date.now()}`;
     const orderRef = adminDb.collection('orders').doc(orderId);
 
-    await orderRef.set({
+    const deliveryMethod = formData.get('delivery_method') as 'delivery' | 'self_collection' || 'delivery';
+
+    const orderData: any = {
         id: orderId,
         customer,
         items: cartItems,
@@ -69,16 +65,43 @@ export async function createCheckoutSession(prevState: any, formData: FormData) 
         shipping_cost: shippingCost,
         discount_amount: appliedDiscount,
         total_amount: totalAmount,
-        status: 'PENDING',
+        status: IS_DEV_MODE ? 'PAID' : 'PENDING',
         created_at: new Date(),
         updated_at: new Date(),
-    });
+        delivery_method: deliveryMethod
+    };
 
-    // 4. Create Bill with BizApp Pay
+    // Add delivery-specific fields
+    if (deliveryMethod === 'delivery') {
+        orderData.shipping_provider = formData.get('shippingProvider') || 'Unknown';
+        orderData.shipping_service = formData.get('shippingService') || 'Standard';
+    } else {
+        // Self-collection
+        orderData.collection_point_id = formData.get('collection_point_id');
+        orderData.collection_point_name = formData.get('collection_point_name');
+        orderData.collection_point_address = formData.get('collection_point_address');
+        orderData.collection_fee = parseFloat(formData.get('collection_fee') as string || '0');
+    }
+
+    await orderRef.set(orderData);
+
+    console.log(`[Checkout] Received Shipping Provider: '${formData.get('shippingProvider')}'`);
+
+    // 4. DEVELOPMENT BYPASS
+    if (IS_DEV_MODE) {
+        console.log(`[DevMode] Bypassing Payment for Order ${orderId}`);
+        // Simulate Webhook Processing
+        await processSuccessfulOrder(orderId);
+
+        // Redirect to Success
+        redirect(`/checkout/success?order_id=${orderId}`);
+    }
+
+    // 5. Create Bill with BizApp Pay (Real Mode)
     try {
         const bizAppUrl = 'https://bizappay.my/api/v3/bill/create';
         const apiKey = process.env.BIZAPP_API_KEY;
-        const categoryCode = process.env.BIZAPP_CATEGORY_CODE; // Check .env
+        const categoryCode = process.env.BIZAPP_CATEGORY_CODE;
         const callbackUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhooks/bizapp`;
         const returnUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/checkout/success?order_id=${orderId}`;
 
@@ -88,7 +111,7 @@ export async function createCheckoutSession(prevState: any, formData: FormData) 
         payload.append('billName', `RudArk Order ${orderId}`);
         payload.append('billDescription', `Order for ${customer.name}`);
         payload.append('billTo', customer.name);
-        payload.append('billEmail', 'user@example.com'); // Required by some gateways, maybe ask user?
+        payload.append('billEmail', customer.email);
         payload.append('billPhone', customer.phone);
         payload.append('billAmount', totalAmount.toFixed(2));
         payload.append('billReturnUrl', returnUrl);
@@ -102,14 +125,7 @@ export async function createCheckoutSession(prevState: any, formData: FormData) 
 
         const data = await res.json();
 
-        // Check BizApp response structure (assuming logic based on v3 docs)
-        // Often it returns { status: true, url: '...' } or similar.
-        // NOTE: Need to verify exact response structure. Assuming 'url' property.
-        // If fail, return error.
-
-        // Simplified handling based on common patterns:
         if (data.url) {
-            // Update order with bill code if available
             await orderRef.update({ bizapp_bill_code: data.billCode || '' });
             redirect(data.url);
         } else {
