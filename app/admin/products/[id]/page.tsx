@@ -32,6 +32,11 @@ export default async function ProductEditorPage({ params }: { params: { id: stri
     const product = await getProduct(id);
     const categories = await getCategories(); // FETCH REAL CATEGORIES
 
+    // If product is null (not found), show not found page
+    if (product === null) {
+        notFound();
+    }
+
     return (
         <div>
             <ProductForm initialData={product} categories={categories} />
