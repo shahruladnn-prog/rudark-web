@@ -36,7 +36,6 @@
     "lib/**/*",
     "types/**/*",
     "utils/**/*",
-    "functions/**/*",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
