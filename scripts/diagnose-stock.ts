@@ -1,5 +1,5 @@
-import { adminDb } from './lib/firebase-admin';
-import { loyverse } from './lib/loyverse';
+import { adminDb } from '../lib/firebase-admin';
+import { loyverse } from '../lib/loyverse';
 
 async function diagnoseStockIssue() {
     console.log('=== STOCK DIAGNOSTIC ===\n');
