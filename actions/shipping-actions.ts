@@ -197,7 +197,7 @@ export async function createShipment(order: any) {
         // Content Details
         content_type: contentType,
         content_description: contentDescription || "Tactical Gear",
-        content_value: Number((order.total_amount || 50).toFixed(2)),
+        content_value: Number((order.subtotal || 50).toFixed(2)),
 
         // Parcel Size
         size: parcelSize,
@@ -251,27 +251,26 @@ export async function createShipment(order: any) {
 
         const data = await response.json();
 
-        // Check for success status (User docs show "status": true)
+        // Check for success status
         if (data.status === true && data.data) {
-            // Response data structure might directly be the shipment details or inside data array?
-            // User docs response example: "data": { "shipment_status": "complete", ... } -> It's an object, not array?
-            // But my previous log showed "data": [] on failure.
-            // Let's assume data contains tracking info directly or we need to parse it.
-            // Docs Response Example: "data": { "tracking_no": ..., "shipment_key": ... } (Actually docs don't show tracking_no in root data, wait)
-            // Docs Example Response: "data": { ... "shipment_key": "..." } 
-            // It does NOT explicitly show "tracking_no" in the example data block provided, but implies success.
-            // We'll trust "shipment_status" or similar. 
-            // IMPORTANT: Previous working code expected `data.data[0].tracking_no`. 
-            // If payload is flat, maybe response is flat object too? 
-            // Let's safe access.
+            // IMPORTANT: create_shipment only adds to cart, does NOT generate tracking number
+            // The shipment_key is ParcelAsia's internal ID, NOT the courier tracking number
+            // Real tracking_no only available AFTER manual checkout in ParcelAsia portal
 
-            const trackingNo = data.data.tracking_no || data.data.shipment_key || "PENDING";
-            const shipmentId = data.data.shipment_id || data.data.shipment_key || "UNKNOWN";
+            const shipmentKey = data.data.shipment_key;
+
+            if (!shipmentKey) {
+                console.error("ParcelAsia returned success but no shipment_key:", data);
+                return { success: false, error: "No shipment key returned" };
+            }
+
+            console.log(`[CreateShipment] Successfully added to ParcelAsia cart. Shipment Key: ${shipmentKey}`);
 
             return {
                 success: true,
-                tracking_no: trackingNo,
-                shipment_id: shipmentId
+                parcelasia_shipment_id: shipmentKey,  // Internal ParcelAsia ID
+                tracking_no: null,  // Will be populated after manual checkout + sync
+                shipping_status: 'READY_TO_SHIP'
             };
         } else {
             console.error("ParcelAsia CreateShipment Failed:", data);

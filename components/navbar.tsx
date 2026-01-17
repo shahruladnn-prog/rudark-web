@@ -108,8 +108,8 @@ export default function Navbar({ categories = [], settings }: NavbarProps) {
                                     </Link>
                                 </div>
 
-                                <Link href="/stories" className="font-condensed font-bold text-lg tracking-widest uppercase text-white hover:text-rudark-volt transition-colors">
-                                    Stories
+                                <Link href="/about" className="font-condensed font-bold text-lg tracking-widest uppercase text-white hover:text-rudark-volt transition-colors">
+                                    About Us
                                 </Link>
                             </div>
 
@@ -158,29 +158,54 @@ export default function Navbar({ categories = [], settings }: NavbarProps) {
                                 </button>
                             </div>
 
-                            <div className="p-6 space-y-8">
-                                {categories.map((cat: any) => (
-                                    <div key={cat.slug}>
-                                        <h3 className="text-rudark-volt font-condensed font-bold text-xl uppercase mb-4">{cat.name || cat.category_name}</h3>
-                                        <ul className="space-y-4 border-l border-rudark-grey/30 pl-4">
-                                            {(cat.subcategories || []).map((sub: any) => (
-                                                <li key={sub.slug}>
-                                                    <Link
-                                                        href={`/shop/${cat.slug}/${sub.slug}`}
-                                                        className="block text-gray-300 text-sm hover:text-white py-1 uppercase"
-                                                        onClick={() => setIsMenuOpen(false)}
-                                                    >
-                                                        {sub.name}
-                                                    </Link>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                ))}
+                            <div className="p-6 space-y-6">
+                                {/* Main SHOP Link - Always visible */}
+                                <Link
+                                    href="/shop"
+                                    className="block text-2xl font-condensed font-bold text-rudark-volt uppercase mb-6"
+                                    onClick={() => setIsMenuOpen(false)}
+                                >
+                                    Shop All →
+                                </Link>
 
-                                <div className="pt-8 border-t border-rudark-grey/30">
-                                    <Link href="/stories" className="block text-lg font-condensed font-bold text-white uppercase mb-4">Stories</Link>
-                                    <Link href="/account" className="block text-lg font-condensed font-bold text-white uppercase">Account</Link>
+                                {/* Categories with Subcategories */}
+                                {categories.length > 0 ? (
+                                    categories.map((cat: any) => (
+                                        <div key={cat.slug || cat.id}>
+                                            <Link
+                                                href={`/shop/${cat.slug}`}
+                                                className="text-rudark-volt font-condensed font-bold text-lg uppercase mb-3 block hover:text-white"
+                                                onClick={() => setIsMenuOpen(false)}
+                                            >
+                                                {cat.name || cat.category_name}
+                                            </Link>
+                                            {(cat.subcategories && cat.subcategories.length > 0) && (
+                                                <ul className="space-y-3 border-l border-rudark-grey/30 pl-4 mb-4">
+                                                    {cat.subcategories.map((sub: any) => (
+                                                        <li key={sub.slug}>
+                                                            <Link
+                                                                href={`/shop/${cat.slug}/${sub.slug}`}
+                                                                className="block text-gray-300 text-sm hover:text-white py-1 uppercase"
+                                                                onClick={() => setIsMenuOpen(false)}
+                                                            >
+                                                                {sub.name}
+                                                            </Link>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-gray-500 text-sm">Loading categories...</div>
+                                )}
+
+                                {/* Other Pages */}
+                                <div className="pt-6 border-t border-rudark-grey/30 space-y-4">
+                                    <Link href="/about" className="block text-lg font-condensed font-bold text-white uppercase hover:text-rudark-volt" onClick={() => setIsMenuOpen(false)}>About Us</Link>
+                                    <Link href="/contact" className="block text-lg font-condensed font-bold text-white uppercase hover:text-rudark-volt" onClick={() => setIsMenuOpen(false)}>Contact</Link>
+                                    <Link href="/warranty" className="block text-lg font-condensed font-bold text-white uppercase hover:text-rudark-volt" onClick={() => setIsMenuOpen(false)}>Warranty</Link>
+                                    <Link href="/returns" className="block text-lg font-condensed font-bold text-white uppercase hover:text-rudark-volt" onClick={() => setIsMenuOpen(false)}>Returns</Link>
                                 </div>
                             </div>
                         </div>

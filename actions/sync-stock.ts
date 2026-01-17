@@ -48,46 +48,88 @@ export async function syncStockFromLoyverse() {
 
         for (const doc of snapshot.docs) {
             const product = doc.data();
+            let productUpdated = false;
+            let productTotalStock = 0;
 
-            // Try to get variant_id from product or from SKU mapping
-            let variantId = product.loyverse_variant_id;
+            // Check if product has variants
+            if (product.variants && product.variants.length > 0) {
+                // Sync each variant's stock
+                const updatedVariants = product.variants.map((variant: any) => {
+                    const variantSku = variant.sku;
+                    let variantVariantId = variant.loyverse_variant_id;
 
-            if (!variantId && product.sku) {
-                variantId = skuToVariantMap.get(product.sku);
+                    // Try to find variant_id from SKU if not already set
+                    if (!variantVariantId && variantSku) {
+                        variantVariantId = skuToVariantMap.get(variantSku);
+                    }
 
-                // If found, save it for future use
-                if (variantId) {
-                    batch.update(doc.ref, { loyverse_variant_id: variantId });
-                }
-            }
+                    if (variantVariantId) {
+                        const loyverseStock = inventoryMap.get(variantVariantId);
+                        if (loyverseStock !== undefined) {
+                            productTotalStock += loyverseStock;
+                            console.log(`[Stock Sync] Variant ${variantSku}: ${loyverseStock} units`);
+                            return {
+                                ...variant,
+                                stock_quantity: loyverseStock,
+                                loyverse_variant_id: variantVariantId
+                            };
+                        }
+                    }
+                    // Keep existing stock if not found
+                    productTotalStock += variant.stock_quantity || 0;
+                    return variant;
+                });
 
-            if (!variantId) {
-                console.log(`[Stock Sync] Skipping ${product.name} (${product.sku}) - no variant_id`);
-                skipped++;
-                continue;
-            }
-
-            const loyverseStock = inventoryMap.get(variantId);
-
-            if (loyverseStock !== undefined) {
-                // Update stock_quantity, keep reserved_quantity unchanged
+                // Update product with new variant stock levels
                 batch.update(doc.ref, {
-                    stock_quantity: loyverseStock,
+                    variants: updatedVariants,
+                    stock_quantity: productTotalStock, // Total of all variants
                     last_stock_sync: FieldValue.serverTimestamp()
                 });
+                productUpdated = true;
                 updated++;
                 batchCount++;
 
-                console.log(`[Stock Sync] Updated ${product.name} (${product.sku}): ${loyverseStock} units`);
-
-                // Firestore batch limit is 500 operations
-                if (batchCount >= 500) {
-                    await batch.commit();
-                    batchCount = 0;
-                }
             } else {
-                console.log(`[Stock Sync] No inventory for ${product.name} (variant_id: ${variantId})`);
-                skipped++;
+                // Non-variant product: use parent SKU lookup
+                let variantId = product.loyverse_variant_id;
+
+                if (!variantId && product.sku) {
+                    variantId = skuToVariantMap.get(product.sku);
+
+                    // If found, save it for future use
+                    if (variantId) {
+                        batch.update(doc.ref, { loyverse_variant_id: variantId });
+                    }
+                }
+
+                if (!variantId) {
+                    console.log(`[Stock Sync] Skipping ${product.name} (${product.sku}) - no variant_id`);
+                    skipped++;
+                    continue;
+                }
+
+                const loyverseStock = inventoryMap.get(variantId);
+
+                if (loyverseStock !== undefined) {
+                    batch.update(doc.ref, {
+                        stock_quantity: loyverseStock,
+                        last_stock_sync: FieldValue.serverTimestamp()
+                    });
+                    updated++;
+                    batchCount++;
+
+                    console.log(`[Stock Sync] Updated ${product.name} (${product.sku}): ${loyverseStock} units`);
+                } else {
+                    console.log(`[Stock Sync] No inventory for ${product.name} (variant_id: ${variantId})`);
+                    skipped++;
+                }
+            }
+
+            // Firestore batch limit is 500 operations
+            if (batchCount >= 450) {
+                await batch.commit();
+                batchCount = 0;
             }
         }
 

@@ -23,6 +23,23 @@ export default function MegaMenu({ isOpen, categories }: MegaMenuProps) {
 
     const activeCategory = categories.find(c => (c.id === activeTab || c.slug === activeTab));
 
+    // Empty state when no categories
+    if (categories.length === 0) {
+        return (
+            <div
+                className="absolute left-0 w-full bg-rudark-carbon border-b border-rudark-grey shadow-2xl z-40 overflow-hidden"
+                style={{ top: '100%' }}
+            >
+                <div className="max-w-7xl mx-auto p-12 text-center">
+                    <Link href="/shop" className="text-2xl font-condensed font-bold text-rudark-volt hover:text-white uppercase">
+                        Browse All Products →
+                    </Link>
+                    <p className="text-gray-500 mt-4 text-sm">Categories loading or not available</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div
             className="absolute left-0 w-full bg-rudark-carbon border-b border-rudark-grey shadow-2xl z-40 overflow-hidden group"

@@ -52,11 +52,25 @@ export async function processChipPayment(
         const apiKey = await getChipApiKey(settings.chip.environment);
 
         // Convert cart items to CHIP products format
-        const products = cartItems.map(item => ({
-            name: item.name,
-            price: Math.round((item.promo_price || item.web_price) * 100), // Convert to cents
-            quantity: item.quantity
-        }));
+        // If there's a discount, we need to distribute it across items proportionally
+        // CHIP does NOT accept negative price line items
+        let products: Array<{ name: string; price: number; quantity: number }> = [];
+
+        const itemsSubtotal = cartItems.reduce((sum, item) => sum + (item.promo_price || item.web_price) * item.quantity, 0);
+        const discountRatio = discount > 0 ? discount / itemsSubtotal : 0;
+
+        products = cartItems.map(item => {
+            const originalPrice = item.promo_price || item.web_price;
+            // Apply discount proportionally to each item
+            const discountedPrice = discount > 0
+                ? originalPrice * (1 - discountRatio)
+                : originalPrice;
+            return {
+                name: item.name,
+                price: Math.max(1, Math.round(discountedPrice * 100)), // Convert to cents, min 1 cent
+                quantity: item.quantity
+            };
+        });
 
         // Add shipping as a product if applicable
         if (shippingCost > 0) {
@@ -67,14 +81,7 @@ export async function processChipPayment(
             });
         }
 
-        // Add discount as negative product if applicable
-        if (discount > 0) {
-            products.push({
-                name: 'Discount',
-                price: -Math.round(discount * 100),
-                quantity: 1
-            });
-        }
+        // Note: Discount is already applied to item prices above, no need for negative line item
 
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
@@ -156,8 +163,10 @@ export async function processChipPayment(
         if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
             throw error;
         }
-        console.error('[CHIP] Payment creation error:', error);
-        return { error: 'Failed to create CHIP payment. Please try again.' };
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('[CHIP] Payment creation error:', errorMessage);
+        console.error('[CHIP] Full error:', error);
+        return { error: `Failed to create CHIP payment: ${errorMessage}` };
     }
 }
 

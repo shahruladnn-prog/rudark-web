@@ -4,7 +4,7 @@ import { adminDb } from '@/lib/firebase-admin';
 import { CartItem } from '@/types';
 import { getPaymentSettings } from '@/actions/payment-settings-actions';
 import { processChipPayment } from '@/actions/payment-processors/chip';
-import { processBizAppayPayment } from '@/actions/payment-processors/bizappay';
+// BizAppay removed - using CHIP as primary gateway
 import { processManualPayment } from '@/actions/payment-processors/manual';
 
 export async function createCheckoutSession(prevState: any, formData: FormData) {
@@ -87,7 +87,13 @@ export async function createCheckoutSession(prevState: any, formData: FormData) 
 
     // 4. Get Payment Gateway Settings
     const paymentSettings = await getPaymentSettings();
-    const activeGateway = paymentSettings.enabled_gateway;
+    let activeGateway = paymentSettings.enabled_gateway;
+
+    // Fallback to CHIP if gateway is not configured or is a legacy value
+    if (activeGateway !== 'chip' && activeGateway !== 'manual') {
+        console.log(`[Checkout] Unknown gateway '${activeGateway}', defaulting to CHIP`);
+        activeGateway = 'chip';
+    }
 
     console.log(`[Checkout] Active Payment Gateway: ${activeGateway}`);
 
@@ -104,19 +110,22 @@ export async function createCheckoutSession(prevState: any, formData: FormData) 
                     appliedDiscount
                 );
 
-            case 'bizappay':
-                return await processBizAppayPayment(
-                    orderId,
-                    cartItems,
-                    customer,
-                    totalAmount
-                );
+            // BizAppay removed - CHIP is now primary gateway
 
             case 'manual':
                 return await processManualPayment(orderId);
 
             default:
-                return { error: 'Invalid payment gateway configuration. Please contact support.' };
+                // This should never happen now due to fallback above
+                console.error(`[Checkout] Unexpected gateway: ${activeGateway}`);
+                return await processChipPayment(
+                    orderId,
+                    cartItems,
+                    customer,
+                    totalAmount,
+                    shippingCost,
+                    appliedDiscount
+                );
         }
     } catch (error) {
         if (error instanceof Error && error.message === 'NEXT_REDIRECT') {

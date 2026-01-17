@@ -68,6 +68,7 @@ export async function toggleChipEnvironment(environment: 'test' | 'live') {
     }
 }
 
+
 /**
  * Get API key for CHIP based on environment
  */
@@ -75,6 +76,16 @@ export async function getChipApiKey(environment: 'test' | 'live'): Promise<strin
     return environment === 'live'
         ? process.env.CHIP_LIVE_SECRET_KEY!
         : process.env.CHIP_TEST_SECRET_KEY!;
+}
+
+/**
+ * Get Public Key for CHIP signature verification
+ * Returns undefined if not set (which will cause verification to fail safely)
+ */
+export async function getChipPublicKey(): Promise<string | undefined> {
+    // In a real app, this should probably be in Firestore settings or Env Var
+    // For now, checking Env Var first
+    return process.env.CHIP_PUBLIC_KEY;
 }
 
 /**

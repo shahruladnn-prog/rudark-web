@@ -35,7 +35,7 @@ export default function ShopCategoryPage({ params }: { params: { slug: string[] 
 
     if (products.length === 0) {
         return (
-            <div className="min-h-screen bg-rudark-matte text-white pt-32 pb-20 px-8 text-center bg-[url('/grid-mesh.png')] bg-fixed">
+            <div className="min-h-screen bg-rudark-matte text-white pt-32 pb-20 px-8 text-center bg-[url('/grid-mesh.svg')] bg-fixed">
                 <h1 className="text-4xl font-condensed font-bold uppercase mb-4">{title}</h1>
                 <p className="text-gray-400 font-mono mb-8">No tactical gear found in this sector.</p>
                 <Link href="/" className="text-rudark-volt hover:underline uppercase text-sm tracking-widest font-bold">Return to Base</Link>
@@ -46,7 +46,7 @@ export default function ShopCategoryPage({ params }: { params: { slug: string[] 
     }
 
     return (
-        <div className="min-h-screen bg-rudark-matte text-white pt-32 pb-20 px-4 md:px-8 bg-[url('/grid-mesh.png')] bg-fixed">
+        <div className="min-h-screen bg-rudark-matte text-white pt-32 pb-20 px-4 md:px-8 bg-[url('/grid-mesh.svg')] bg-fixed">
             <div className="max-w-7xl mx-auto">
                 <h1 className="text-5xl md:text-7xl font-condensed font-bold uppercase mb-8 text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500 tracking-tighter">
                     {title}

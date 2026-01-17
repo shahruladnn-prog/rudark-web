@@ -308,7 +308,7 @@ export default function CheckoutPage() {
     }
 
     return (
-        <div className="min-h-screen bg-rudark-matte text-white pt-32 pb-20 px-4 md:px-8 bg-[url('/grid-mesh.png')] bg-fixed">
+        <div className="min-h-screen bg-rudark-matte text-white pt-32 pb-20 px-4 md:px-8 bg-[url('/grid-mesh.svg')] bg-fixed">
             <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12">
 
                 {/* 1. Order Summary Column (Mobile: Top, Desktop: Right - wait, flex order? No, native order implies Left/Top) */}
@@ -590,7 +590,7 @@ export default function CheckoutPage() {
                             </div>
 
                             <p className="text-[10px] text-gray-500 text-center font-mono uppercase tracking-widest mt-4">
-                                Encrypted Transaction via BizApp Pay
+                                Secure Payment via CHIP In Asia
                             </p>
                         </form>
                     </div>

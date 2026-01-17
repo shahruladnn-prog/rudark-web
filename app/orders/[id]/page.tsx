@@ -31,11 +31,12 @@ export default function OrderStatusPage() {
     if (loading) return <div className="p-10 text-center">Loading Order Details...</div>;
     if (!order) return <div className="p-10 text-center text-red-500">Order not found.</div>;
 
-    const isPaid = order.status === 'PAID';
-    const trackingNumber = order.tracking_number;
+    const validStatuses = ['PAID', 'AWAITING_PICKUP', 'SHIPPED', 'DELIVERED', 'COMPLETED'];
+    const isPaid = validStatuses.includes(order.status);
+    const trackingNumber = order.tracking_no;
 
     return (
-        <div className="min-h-screen bg-rudark-matte text-white pt-32 pb-20 px-4 md:px-8 bg-[url('/grid-mesh.png')] bg-fixed">
+        <div className="min-h-screen bg-rudark-matte text-white pt-32 pb-20 px-4 md:px-8 bg-[url('/grid-mesh.svg')] bg-fixed">
             <div className="max-w-3xl mx-auto">
                 <h1 className="text-3xl font-condensed font-bold mb-6 uppercase text-white">Order Status</h1>
 

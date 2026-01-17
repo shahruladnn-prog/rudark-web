@@ -47,7 +47,7 @@ export default function SuccessPage() {
                 <p className="mb-4 text-lg">Mission approved.</p>
                 <p className="text-sm font-light text-gray-500">
                     We have received your requisition details and payment confirmation.
-                    Stand by for shipping notification. Please allow up to 24 hours for tracking to be updated.
+                    Your tracking number will be generated shortly. Click &quot;View Order Status&quot; below to see your tracking in real-time.
                 </p>
             </div>
 

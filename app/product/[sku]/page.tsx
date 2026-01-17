@@ -73,7 +73,7 @@ export default async function ProductPage({ params }: { params: Promise<{ sku: s
     const isOutOfStock = product.stock_status === 'OUT';
 
     return (
-        <div className="min-h-screen bg-rudark-matte text-white pt-32 pb-20 px-4 md:px-8 bg-[url('/grid-mesh.png')] bg-fixed">
+        <div className="min-h-screen bg-rudark-matte text-white pt-32 pb-20 px-4 md:px-8 bg-[url('/grid-mesh.svg')] bg-fixed">
             <div className="max-w-6xl mx-auto bg-rudark-carbon rounded-sm shadow-xl overflow-hidden border border-rudark-grey/30">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-0">
 

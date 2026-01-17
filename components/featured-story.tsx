@@ -39,7 +39,7 @@ export default function FeaturedStory() {
                         survived the <span className="text-white font-medium">Project Abyss</span> expedition.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4">
-                        <Link href="/stories/project-abyss" className="px-8 py-4 bg-white text-black font-condensed font-bold text-xl uppercase hover:bg-rudark-volt transition-colors text-center">
+                        <Link href="/about" className="px-8 py-4 bg-white text-black font-condensed font-bold text-xl uppercase hover:bg-rudark-volt transition-colors text-center">
                             Read The Story
                         </Link>
                         <Link href="/shop/collections/expedition" className="px-8 py-4 border border-gray-600 text-white font-condensed font-bold text-xl uppercase hover:border-rudark-volt hover:text-rudark-volt transition-colors text-center">

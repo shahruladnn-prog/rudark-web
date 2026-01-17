@@ -75,8 +75,8 @@ export default function PaymentSettingsPage() {
 
                 {message && (
                     <div className={`mb-6 p-4 rounded-sm border flex items-center gap-2 ${message.type === 'success'
-                            ? 'bg-green-900/20 border-green-500 text-green-200'
-                            : 'bg-red-900/20 border-red-500 text-red-200'
+                        ? 'bg-green-900/20 border-green-500 text-green-200'
+                        : 'bg-red-900/20 border-red-500 text-red-200'
                         }`}>
                         {message.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
                         {message.text}
@@ -91,8 +91,8 @@ export default function PaymentSettingsPage() {
                     <div className="space-y-3">
                         {/* CHIP */}
                         <label className={`flex items-center gap-4 p-4 border rounded-sm cursor-pointer transition-all ${settings.enabled_gateway === 'chip'
-                                ? 'border-rudark-volt bg-rudark-volt/10'
-                                : 'border-rudark-grey hover:border-gray-500'
+                            ? 'border-rudark-volt bg-rudark-volt/10'
+                            : 'border-rudark-grey hover:border-gray-500'
                             }`}>
                             <input
                                 type="radio"
@@ -114,32 +114,10 @@ export default function PaymentSettingsPage() {
                             )}
                         </label>
 
-                        {/* BizAppay */}
-                        <label className={`flex items-center gap-4 p-4 border rounded-sm cursor-pointer transition-all ${settings.enabled_gateway === 'bizappay'
-                                ? 'border-rudark-volt bg-rudark-volt/10'
-                                : 'border-rudark-grey hover:border-gray-500'
-                            }`}>
-                            <input
-                                type="radio"
-                                name="gateway"
-                                value="bizappay"
-                                checked={settings.enabled_gateway === 'bizappay'}
-                                onChange={() => handleGatewayChange('bizappay')}
-                                className="w-4 h-4"
-                            />
-                            <div className="flex-1">
-                                <div className="font-bold text-white">BizAppay</div>
-                                <div className="text-sm text-gray-400">FPX Online Banking</div>
-                            </div>
-                            {settings.enabled_gateway === 'bizappay' && (
-                                <span className="bg-green-500 text-white px-2 py-1 rounded text-xs font-bold">LIVE ONLY</span>
-                            )}
-                        </label>
-
                         {/* Manual Payment */}
                         <label className={`flex items-center gap-4 p-4 border rounded-sm cursor-pointer transition-all ${settings.enabled_gateway === 'manual'
-                                ? 'border-rudark-volt bg-rudark-volt/10'
-                                : 'border-rudark-grey hover:border-gray-500'
+                            ? 'border-rudark-volt bg-rudark-volt/10'
+                            : 'border-rudark-grey hover:border-gray-500'
                             }`}>
                             <input
                                 type="radio"
@@ -168,8 +146,8 @@ export default function PaymentSettingsPage() {
                                 <button
                                     onClick={() => handleChipEnvironmentToggle('test')}
                                     className={`flex-1 p-3 rounded-sm border font-bold transition-all ${settings.chip.environment === 'test'
-                                            ? 'bg-yellow-500 text-black border-yellow-500'
-                                            : 'bg-rudark-matte border-rudark-grey text-gray-400 hover:border-gray-500'
+                                        ? 'bg-yellow-500 text-black border-yellow-500'
+                                        : 'bg-rudark-matte border-rudark-grey text-gray-400 hover:border-gray-500'
                                         }`}
                                 >
                                     🧪 Test Mode
@@ -177,8 +155,8 @@ export default function PaymentSettingsPage() {
                                 <button
                                     onClick={() => handleChipEnvironmentToggle('live')}
                                     className={`flex-1 p-3 rounded-sm border font-bold transition-all ${settings.chip.environment === 'live'
-                                            ? 'bg-green-500 text-white border-green-500'
-                                            : 'bg-rudark-matte border-rudark-grey text-gray-400 hover:border-gray-500'
+                                        ? 'bg-green-500 text-white border-green-500'
+                                        : 'bg-rudark-matte border-rudark-grey text-gray-400 hover:border-gray-500'
                                         }`}
                                 >
                                     ✅ Live Mode

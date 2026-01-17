@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Facebook, Instagram, Twitter, Youtube, ArrowRight } from 'lucide-react';
+import Image from 'next/image';
+import { Facebook, Instagram, Youtube, ArrowRight, Mail, Phone, MapPin } from 'lucide-react';
 
 interface FooterProps {
     categories?: Array<{ name: string; slug: string; product_count?: number }>;
@@ -12,44 +13,82 @@ export default function FooterRefined({ categories = [] }: FooterProps) {
     const topCategories = categories
         .sort((a, b) => (b.product_count || 0) - (a.product_count || 0))
         .slice(0, 5);
-    return (
-        <footer className="bg-rudark-carbon border-t border-rudark-grey text-white pt-20 pb-8 relative overflow-hidden">
 
-            {/* Mountain Silhouette Decoration (CSS drawn or SVG) */}
-            <div className="absolute top-0 left-0 w-full h-8 bg-rudark-matte"
+    return (
+        <footer className="bg-rudark-carbon border-t border-rudark-grey text-white pt-16 pb-8 relative overflow-hidden">
+
+            {/* Mountain Silhouette Decoration */}
+            <div className="absolute top-0 left-0 w-full h-6 bg-rudark-matte"
                 style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%, 10% 20%, 20% 80%, 30% 10%, 40% 60%, 50% 10%, 60% 70%, 70% 20%, 80% 90%, 90% 30%)' }} />
 
             <div className="max-w-7xl mx-auto px-4 md:px-8">
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-12 mb-16">
 
-                    {/* Newsletter Section (Left Prominent) */}
-                    <div className="col-span-1 md:col-span-5 pr-8">
-                        <div className="mb-8">
-                            <span className="text-rudark-volt font-mono text-xs tracking-widest uppercase block mb-2">Join The Team</span>
-                            <h3 className="text-4xl font-condensed font-bold uppercase leading-none mb-4">
-                                Stay In The <span className="text-transparent bg-clip-text bg-gradient-to-r from-rudark-volt to-white">Loop</span>
-                            </h3>
-                            <p className="text-gray-400 text-sm mb-6 max-w-sm">
-                                Sign up for exclusive access to new drops, pro-team stories, and expedition reports.
-                            </p>
-                            <form className="flex border-b border-rudark-grey hover:border-rudark-volt transition-colors pb-2">
-                                <input
-                                    type="email"
-                                    placeholder="ENTER YOUR EMAIL"
-                                    className="bg-transparent w-full outline-none text-white placeholder-gray-600 font-condensed uppercase tracking-wide"
-                                />
-                                <button type="submit" className="text-rudark-volt hover:text-white transition-colors">
-                                    <ArrowRight size={20} />
-                                </button>
-                            </form>
+                {/* Main Footer Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12 mb-12">
+
+                    {/* Contact & Brand Section */}
+                    <div className="col-span-1 md:col-span-5">
+                        {/* Dual Logo Section */}
+                        <div className="flex items-center gap-4 mb-6">
+                            <Image
+                                src="/logo.png"
+                                alt="Rud'Ark"
+                                width={50}
+                                height={50}
+                                className="object-contain"
+                            />
+                            <div className="w-px h-10 bg-rudark-grey" />
+                            <Image
+                                src="/GGPR white LOGO-01.png"
+                                alt="GGP Resources Sdn Bhd"
+                                width={120}
+                                height={40}
+                                className="object-contain"
+                            />
                         </div>
 
-                        <div className="flex gap-4">
+                        {/* Company Info */}
+                        <h3 className="text-xs text-rudark-volt font-mono uppercase tracking-widest mb-2">
+                            A Brand by GGP Resources Sdn Bhd
+                        </h3>
+
+                        {/* Contact Details */}
+                        <div className="space-y-3 mb-6">
+                            <a
+                                href="mailto:hello@rudark.my"
+                                className="flex items-center gap-3 text-gray-400 hover:text-rudark-volt transition-colors group"
+                            >
+                                <Mail size={16} className="text-rudark-volt" />
+                                <span className="text-sm font-mono">hello@rudark.my</span>
+                            </a>
+                            <a
+                                href="tel:+60135518857"
+                                className="flex items-center gap-3 text-gray-400 hover:text-rudark-volt transition-colors group"
+                            >
+                                <Phone size={16} className="text-rudark-volt" />
+                                <span className="text-sm font-mono">+60 13-551 8857</span>
+                            </a>
+                            <a
+                                href="https://maps.app.goo.gl/QetxHvtzAeTXEPPn7"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-start gap-3 text-gray-400 hover:text-rudark-volt transition-colors group"
+                            >
+                                <MapPin size={16} className="text-rudark-volt mt-0.5 flex-shrink-0" />
+                                <span className="text-sm leading-relaxed">
+                                    Lot 10846, Jalan Besar Kampung Chulek,<br />
+                                    31600 Gopeng, Perak, Malaysia
+                                </span>
+                            </a>
+                        </div>
+
+                        {/* Social Links */}
+                        <div className="flex gap-3">
                             <Link
                                 href="https://www.instagram.com/rudark.my/"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="p-2 bg-rudark-matte rounded-full text-gray-400 hover:text-rudark-volt hover:bg-black transition-all"
+                                className="p-2.5 bg-rudark-matte rounded-sm text-gray-400 hover:text-rudark-volt hover:bg-black transition-all border border-rudark-grey/30"
                                 aria-label="Instagram"
                             >
                                 <Instagram size={18} />
@@ -58,7 +97,7 @@ export default function FooterRefined({ categories = [] }: FooterProps) {
                                 href="https://www.facebook.com/rudaark/"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="p-2 bg-rudark-matte rounded-full text-gray-400 hover:text-rudark-volt hover:bg-black transition-all"
+                                className="p-2.5 bg-rudark-matte rounded-sm text-gray-400 hover:text-rudark-volt hover:bg-black transition-all border border-rudark-grey/30"
                                 aria-label="Facebook"
                             >
                                 <Facebook size={18} />
@@ -67,7 +106,7 @@ export default function FooterRefined({ categories = [] }: FooterProps) {
                                 href="https://www.youtube.com/@rudark"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="p-2 bg-rudark-matte rounded-full text-gray-400 hover:text-rudark-volt hover:bg-black transition-all"
+                                className="p-2.5 bg-rudark-matte rounded-sm text-gray-400 hover:text-rudark-volt hover:bg-black transition-all border border-rudark-grey/30"
                                 aria-label="YouTube"
                             >
                                 <Youtube size={18} />
@@ -76,7 +115,7 @@ export default function FooterRefined({ categories = [] }: FooterProps) {
                                 href="https://www.tiktok.com/@rudark.my"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="p-2 bg-rudark-matte rounded-full text-gray-400 hover:text-rudark-volt hover:bg-black transition-all"
+                                className="p-2.5 bg-rudark-matte rounded-sm text-gray-400 hover:text-rudark-volt hover:bg-black transition-all border border-rudark-grey/30"
                                 aria-label="TikTok"
                             >
                                 <svg className="w-[18px] h-[18px] fill-current" viewBox="0 0 24 24">
@@ -86,28 +125,23 @@ export default function FooterRefined({ categories = [] }: FooterProps) {
                         </div>
                     </div>
 
-                    {/* Links Columns */}
+                    {/* Shop Links */}
                     <div className="col-span-1 md:col-span-2">
-                        <h4 className="font-condensed font-bold text-lg uppercase mb-6 text-white tracking-widest">Shop</h4>
-                        <ul className="space-y-3">
+                        <h4 className="font-condensed font-bold text-lg uppercase mb-5 text-white tracking-wider">Shop</h4>
+                        <ul className="space-y-2.5">
                             {topCategories.length > 0 ? (
                                 <>
                                     {topCategories.map((category) => (
                                         <li key={category.slug}>
                                             <Link
                                                 href={`/shop?category=${category.slug}`}
-                                                className="text-gray-400 hover:text-rudark-volt transition-colors text-sm flex justify-between items-center group"
+                                                className="text-gray-400 hover:text-rudark-volt transition-colors text-sm uppercase"
                                             >
-                                                <span className="uppercase">{category.name}</span>
-                                                {category.product_count !== undefined && (
-                                                    <span className="text-xs text-gray-600 group-hover:text-rudark-volt font-mono">
-                                                        ({category.product_count})
-                                                    </span>
-                                                )}
+                                                {category.name}
                                             </Link>
                                         </li>
                                     ))}
-                                    <li className="pt-2">
+                                    <li className="pt-1">
                                         <Link
                                             href="/shop"
                                             className="text-rudark-volt hover:text-white transition-colors text-sm uppercase font-bold flex items-center gap-1"
@@ -117,44 +151,59 @@ export default function FooterRefined({ categories = [] }: FooterProps) {
                                     </li>
                                 </>
                             ) : (
-                                <>
-                                    <li><Link href="/shop" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm uppercase">All Products</Link></li>
-                                </>
+                                <li><Link href="/shop" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm uppercase">All Products</Link></li>
                             )}
                         </ul>
                     </div>
 
-                    {/* Support */}
-                    <div>
-                        <h4 className="text-lg font-bold font-condensed mb-6 uppercase tracking-wider text-white border-b border-rudark-grey inline-block pb-2">Support</h4>
-                        <div className="flex flex-col space-y-3 font-mono">
-                            <Link href="/order-tracking" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm uppercase">
-                                Order Status
-                            </Link>
-                            <Link href="/returns" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm">RETURNS</Link>
-                            <Link href="/warranty" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm">WARRANTY</Link>
-                            <Link href="/contact" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm">CONTACT US</Link>
-                        </div>
+                    {/* Support Links */}
+                    <div className="col-span-1 md:col-span-2">
+                        <h4 className="font-condensed font-bold text-lg uppercase mb-5 text-white tracking-wider">Support</h4>
+                        <ul className="space-y-2.5">
+                            <li><a href="https://myparcelasia.com/track" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm uppercase">Track Order</a></li>
+                            <li><Link href="/shipping-policy" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm uppercase">Shipping & Returns</Link></li>
+                            <li><Link href="/refund-policy" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm uppercase">Refund Policy</Link></li>
+                            <li><Link href="/contact" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm uppercase">Contact Us</Link></li>
+                        </ul>
                     </div>
 
+                    {/* Company Links */}
                     <div className="col-span-1 md:col-span-3">
-                        <h4 className="font-condensed font-bold text-lg uppercase mb-6 text-white tracking-widest">Company</h4>
-                        <ul className="space-y-3">
-                            <li><Link href="#" className="text-gray-400 hover:text-rudark-volt text-sm uppercase font-medium transition-colors">About Rud'Ark</Link></li>
-                            <li><Link href="#" className="text-gray-400 hover:text-rudark-volt text-sm uppercase font-medium transition-colors">Our Athletes</Link></li>
-                            <li><Link href="#" className="text-gray-400 hover:text-rudark-volt text-sm uppercase font-medium transition-colors">Sustainability</Link></li>
-                            <li><Link href="#" className="text-gray-400 hover:text-rudark-volt text-sm uppercase font-medium transition-colors">Careers</Link></li>
+                        <h4 className="font-condensed font-bold text-lg uppercase mb-5 text-white tracking-wider">Company</h4>
+                        <ul className="space-y-2.5">
+                            <li><Link href="/about" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm uppercase">About Rud'Ark</Link></li>
+                            <li><Link href="/privacy-policy" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm uppercase">Privacy Policy</Link></li>
                         </ul>
+
+                        {/* Newsletter Mini */}
+                        <div className="mt-6 pt-4 border-t border-rudark-grey/30">
+                            <p className="text-xs text-gray-500 mb-3 uppercase tracking-wider">Join Newsletter</p>
+                            <form className="flex border border-rudark-grey hover:border-rudark-volt transition-colors rounded-sm overflow-hidden">
+                                <input
+                                    type="email"
+                                    placeholder="Your email"
+                                    className="bg-rudark-matte flex-1 px-3 py-2 outline-none text-white placeholder-gray-600 text-sm"
+                                />
+                                <button type="submit" className="bg-rudark-volt text-black px-3 hover:bg-white transition-colors">
+                                    <ArrowRight size={16} />
+                                </button>
+                            </form>
+                        </div>
                     </div>
 
                 </div>
 
                 {/* Bottom Bar */}
-                <div className="pt-8 border-t border-rudark-grey/30 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500 font-mono uppercase tracking-wider">
-                    <p>© 2025 Rud'Ark Pro Shop. All rights reserved.</p>
-                    <div className="flex gap-6 mt-4 md:mt-0">
-                        <Link href="#" className="hover:text-white transition-colors">Privacy Policy</Link>
-                        <Link href="#" className="hover:text-white transition-colors">Terms of Service</Link>
+                <div className="pt-6 border-t border-rudark-grey/30 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-2 text-xs text-gray-500 font-mono">
+                        <span>© 2025 Rud'Ark Pro Shop.</span>
+                        <span className="hidden md:inline">|</span>
+                        <span>A GGP Resources Brand</span>
+                    </div>
+                    <div className="flex gap-6 text-xs text-gray-500 font-mono uppercase">
+                        <Link href="/privacy-policy" className="hover:text-rudark-volt transition-colors">Privacy</Link>
+                        <Link href="/refund-policy" className="hover:text-rudark-volt transition-colors">Refunds</Link>
+                        <Link href="/shipping-policy" className="hover:text-rudark-volt transition-colors">Shipping</Link>
                     </div>
                 </div>
             </div>

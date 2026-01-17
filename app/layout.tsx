@@ -5,9 +5,7 @@ import { CartProvider } from "@/context/cart-context";
 import { AuthProvider } from '@/components/auth-provider';
 import { DialogProvider } from '@/components/ui/dialog';
 import { ToastProvider } from '@/components/ui/toast';
-import Navbar from "@/components/navbar";
-import FooterRefined from "@/components/footer-refined";
-import FloatingSocial from "@/components/floating-social";
+import LayoutWrapper from '@/components/layout-wrapper';
 
 import { getCategories } from '@/actions/category-actions';
 import { getSettings } from '@/actions/settings-actions';
@@ -35,9 +33,9 @@ export const metadata: Metadata = {
   title: "Rud'Ark PRO SHOP",
   description: "Premium technical gear for aquatic dominance.",
   icons: {
-    icon: '/logo.png?v=2',
-    shortcut: '/logo.png?v=2',
-    apple: '/logo.png?v=2',
+    icon: '/Icon White.png',        // White icon for dark browser tabs
+    shortcut: '/Icon White.png',
+    apple: '/Icon Black.png',       // Black outline for light Apple devices
   },
   openGraph: {
     title: "Rud'Ark PRO SHOP",
@@ -82,16 +80,15 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en">
-      <body className={`${montserrat.variable} ${teko.variable} ${blackOpsOne.variable} font-sans bg-[#121212] text-gray-100`}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${montserrat.variable} ${teko.variable} ${blackOpsOne.variable} font-sans bg-[#121212] text-gray-100`} suppressHydrationWarning>
         <AuthProvider>
           <DialogProvider>
             <ToastProvider>
               <CartProvider>
-                <Navbar categories={categories} settings={settings} />
-                {children}
-                <FooterRefined categories={categories} />
-                <FloatingSocial />
+                <LayoutWrapper categories={categories} settings={settings}>
+                  {children}
+                </LayoutWrapper>
               </CartProvider>
             </ToastProvider>
           </DialogProvider>
