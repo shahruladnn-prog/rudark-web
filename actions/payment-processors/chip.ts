@@ -83,7 +83,25 @@ export async function processChipPayment(
 
         // Note: Discount is already applied to item prices above, no need for negative line item
 
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+        // Note: Discount is already applied to item prices above, no need for negative line item
+
+        // Smart Base URL resolution
+        let baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+
+        if (!baseUrl) {
+            if (process.env.VERCEL_URL) {
+                baseUrl = `https://${process.env.VERCEL_URL}`;
+            } else if (process.env.NEXT_PUBLIC_VERCEL_URL) {
+                baseUrl = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
+            } else {
+                baseUrl = 'http://localhost:3000';
+            }
+        }
+
+        // Remove trailing slash if present
+        if (baseUrl.endsWith('/')) {
+            baseUrl = baseUrl.slice(0, -1);
+        }
 
         // CHIP doesn't allow custom ports in webhook URLs
         // For localhost testing, use a placeholder URL (webhook won't work locally anyway)
