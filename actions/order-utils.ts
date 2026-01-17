@@ -27,20 +27,29 @@ export async function processSuccessfulOrder(orderId: string) {
         const order = orderDoc.data();
         if (!order) return { success: false, error: "No data" };
 
-        // 1. DEDUCT STOCK (converts reserved → actual deduction)
-        const stockResult = await deductStock(order.items);
-        if (!stockResult.success) {
-            console.error('[Order Processing] Stock deduction failed:', stockResult.error);
-            // Continue anyway - payment already succeeded
-        } else {
-            console.log('[Order Processing] Stock deducted successfully');
-        }
-
         const updates: any = {
             status: 'PAID',
             updated_at: new Date(),
             payment_method: 'CHIP'
         };
+
+        // 1. DEDUCT STOCK (converts reserved → actual deduction)
+        // IDEMPOTENCY CHECK: Prevent double deduction
+        if (order.stock_deducted) {
+            console.log('[Order Processing] Stock already deducted, skipping.');
+        } else {
+            console.log('[Order Processing] Deducting stock...');
+            const stockResult = await deductStock(order.items);
+
+            if (!stockResult.success) {
+                console.error('[Order Processing] Stock deduction failed:', stockResult.error);
+                // Continue anyway - payment already succeeded, investigate later
+                updates.stock_deducted_error = stockResult.error;
+            } else {
+                console.log('[Order Processing] Stock deducted successfully');
+                updates.stock_deducted = true;
+            }
+        }
 
         // 2. Loyverse Integration (Inventory Deduction)
         try {
