@@ -282,7 +282,7 @@ export async function processSuccessfulOrder(orderId: string) {
                                 console.log(`[ProcessOrder] Auto-checkout SUCCESS! Tracking: ${checkoutResult.tracking_no}`);
                             } else {
                                 // Checkout may have succeeded but tracking not available yet
-                                updates.tracking_no = null;
+                                updates.tracking_no = 'PENDING';
                                 updates.tracking_synced = false;
                                 console.warn(`[ProcessOrder] Auto-checkout: ${checkoutResult.error || 'Tracking not immediately available'}`);
                             }

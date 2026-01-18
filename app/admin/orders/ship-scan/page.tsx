@@ -413,10 +413,14 @@ export default function ShipScanPage() {
                 id={scannerContainerId}
                 style={{
                     display: scannerActive ? 'block' : 'none',
+                    width: '100%',
+                    height: scannerActive ? '300px' : '0',
+                    minHeight: scannerActive ? '300px' : '0',
                     marginBottom: '24px',
                     borderRadius: '12px',
                     overflow: 'hidden',
-                    background: '#000'
+                    background: '#000',
+                    position: 'relative'
                 }}
             />
 

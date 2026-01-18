@@ -222,8 +222,8 @@ export async function checkoutShipment(shipmentKey: string): Promise<{
             if (!trackingNo) {
                 console.log(`[ParcelAsia Checkout] Tracking not in checkout response, fetching from get_shipments...`);
 
-                // Wait a bit for ParcelAsia to process
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // Wait longer for ParcelAsia to process (J&T can be slow)
+                await new Promise(resolve => setTimeout(resolve, 3000));
 
                 const fetchResult = await fetchTrackingFromParcelAsia(shipmentKey);
 
@@ -232,15 +232,25 @@ export async function checkoutShipment(shipmentKey: string): Promise<{
                     console.log(`[ParcelAsia Checkout] Found tracking via get_shipments: ${trackingNo}`);
                 } else {
                     // Retry once more after additional delay
-                    console.log(`[ParcelAsia Checkout] First fetch failed, retrying after 2s delay...`);
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    console.log(`[ParcelAsia Checkout] First fetch failed, retrying after 3s delay...`);
+                    await new Promise(resolve => setTimeout(resolve, 3000));
 
                     const retryResult = await fetchTrackingFromParcelAsia(shipmentKey);
                     if (retryResult.success && retryResult.tracking_no) {
                         trackingNo = retryResult.tracking_no;
                         console.log(`[ParcelAsia Checkout] Found tracking on retry: ${trackingNo}`);
                     } else {
-                        console.warn(`[ParcelAsia Checkout] Still no tracking after retry:`, retryResult.error);
+                        // Third retry for stubborn cases
+                        console.log(`[ParcelAsia Checkout] Second fetch failed, final retry after 5s...`);
+                        await new Promise(resolve => setTimeout(resolve, 5000));
+
+                        const finalRetry = await fetchTrackingFromParcelAsia(shipmentKey);
+                        if (finalRetry.success && finalRetry.tracking_no) {
+                            trackingNo = finalRetry.tracking_no;
+                            console.log(`[ParcelAsia Checkout] Found tracking on final retry: ${trackingNo}`);
+                        } else {
+                            console.warn(`[ParcelAsia Checkout] Still no tracking after 3 retries:`, finalRetry.error);
+                        }
                     }
                 }
             }
