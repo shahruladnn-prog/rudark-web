@@ -180,12 +180,6 @@ export default function OrdersPage() {
                         <Trash2 size={16} />
                     </button>
                     <Link
-                        href="/admin/orders/batch-sync"
-                        className="hidden md:flex items-center gap-2 px-3 py-2 bg-blue-600 text-white font-bold rounded-sm text-sm hover:bg-blue-700"
-                    >
-                        🔄 <span className="hidden lg:inline">Sync</span>
-                    </Link>
-                    <Link
                         href="/admin/orders/ship-scan"
                         className="flex items-center gap-2 px-3 py-2 bg-purple-600 text-white font-bold rounded-sm text-sm hover:bg-purple-700"
                     >

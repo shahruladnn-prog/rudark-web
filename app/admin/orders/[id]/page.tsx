@@ -300,19 +300,13 @@ export default function OrderDetailPage({ params }: PageParams) {
                                         </>
                                     ) : order.parcelasia_shipment_id ? (
                                         <>
-                                            <div className="text-xs text-yellow-500 uppercase">⏳ Pending Checkout</div>
+                                            <div className="text-xs text-yellow-500 uppercase">⏳ Awaiting Tracking</div>
                                             <div className="text-gray-400 text-sm mt-1">
-                                                Added to ParcelAsia cart. Tracking available after checkout.
+                                                Tracking number will be available once parcel is picked up by courier.
                                             </div>
                                             <div className="text-xs text-gray-600 font-mono mt-2">
-                                                ID: {order.parcelasia_shipment_id.substring(0, 12)}...
+                                                Shipment ID: {order.parcelasia_shipment_id.substring(0, 12)}...
                                             </div>
-                                            <Link
-                                                href="/admin/orders/batch-sync"
-                                                className="inline-block mt-2 px-3 py-1 bg-blue-500/20 text-blue-400 text-xs rounded hover:bg-blue-500/30"
-                                            >
-                                                🔄 Sync Tracking
-                                            </Link>
                                         </>
                                     ) : (
                                         <div className="text-gray-500 text-sm">No tracking available</div>

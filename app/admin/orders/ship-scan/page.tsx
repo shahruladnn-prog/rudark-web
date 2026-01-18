@@ -674,21 +674,6 @@ export default function ShipScanPage() {
                 borderTop: '1px solid rgba(255,255,255,0.1)'
             }}>
                 <Link
-                    href="/admin/orders/batch-sync"
-                    style={{
-                        flex: 1,
-                        padding: '12px',
-                        background: 'rgba(59, 130, 246, 0.1)',
-                        color: '#60A5FA',
-                        border: '1px solid rgba(59, 130, 246, 0.3)',
-                        borderRadius: '8px',
-                        textAlign: 'center',
-                        textDecoration: 'none'
-                    }}
-                >
-                    🔄 Sync Tracking
-                </Link>
-                <Link
                     href="/admin/orders"
                     style={{
                         flex: 1,
@@ -702,6 +687,21 @@ export default function ShipScanPage() {
                     }}
                 >
                     📋 All Orders
+                </Link>
+                <Link
+                    href="/admin/orders/delivery-check"
+                    style={{
+                        flex: 1,
+                        padding: '12px',
+                        background: 'rgba(59, 130, 246, 0.1)',
+                        color: '#60A5FA',
+                        border: '1px solid rgba(59, 130, 246, 0.3)',
+                        borderRadius: '8px',
+                        textAlign: 'center',
+                        textDecoration: 'none'
+                    }}
+                >
+                    🚚 Delivery Check
                 </Link>
             </div>
 

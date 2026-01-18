@@ -368,21 +368,6 @@ export default function DeliveryCheckPage() {
                     📷 Scan & Ship
                 </Link>
                 <Link
-                    href="/admin/orders/batch-sync"
-                    style={{
-                        flex: 1,
-                        padding: '12px',
-                        background: 'rgba(59, 130, 246, 0.1)',
-                        color: '#60A5FA',
-                        border: '1px solid rgba(59, 130, 246, 0.3)',
-                        borderRadius: '8px',
-                        textAlign: 'center',
-                        textDecoration: 'none'
-                    }}
-                >
-                    🔄 Sync Tracking
-                </Link>
-                <Link
                     href="/admin/orders"
                     style={{
                         flex: 1,
