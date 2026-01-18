@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Search, RefreshCw, Eye, Package, Clock, CheckCircle, Truck, XCircle, ChevronLeft, ChevronRight, ChevronDown, X, MapPin, Phone, Trash2, AlertTriangle } from 'lucide-react';
+import { Search, RefreshCw, Eye, Package, Clock, CheckCircle, Truck, XCircle, ChevronLeft, ChevronRight, ChevronDown, X, MapPin, Phone, Trash2, AlertTriangle, MessageCircle } from 'lucide-react';
 import { getOrders, getOrderStats, OrderSummary, updateOrderStatus } from '@/actions/order-admin-actions';
 import { cleanupStaleOrders } from '@/actions/order-cleanup';
 
@@ -375,6 +375,7 @@ export default function OrdersPage() {
                                     <th className="text-left p-4 text-xs font-mono text-rudark-volt uppercase">Order ID</th>
                                     <th className="text-left p-4 text-xs font-mono text-rudark-volt uppercase">Customer</th>
                                     <th className="text-left p-4 text-xs font-mono text-rudark-volt uppercase">Status</th>
+                                    <th className="text-left p-4 text-xs font-mono text-rudark-volt uppercase">Tracking</th>
                                     <th className="text-left p-4 text-xs font-mono text-rudark-volt uppercase">Items</th>
                                     <th className="text-left p-4 text-xs font-mono text-rudark-volt uppercase">Total</th>
                                     <th className="text-left p-4 text-xs font-mono text-rudark-volt uppercase">Delivery</th>
@@ -384,9 +385,9 @@ export default function OrdersPage() {
                             </thead>
                             <tbody>
                                 {loading ? (
-                                    <tr><td colSpan={8} className="p-8 text-center text-gray-400">Loading orders...</td></tr>
+                                    <tr><td colSpan={9} className="p-8 text-center text-gray-400">Loading orders...</td></tr>
                                 ) : paginatedOrders.length === 0 ? (
-                                    <tr><td colSpan={8} className="p-8 text-center text-gray-400">No orders found</td></tr>
+                                    <tr><td colSpan={9} className="p-8 text-center text-gray-400">No orders found</td></tr>
                                 ) : (
                                     paginatedOrders.map((order) => (
                                         <tr key={order.id} className="border-b border-rudark-grey/30 hover:bg-rudark-matte/50">
@@ -400,6 +401,15 @@ export default function OrdersPage() {
                                                     <StatusIcon status={order.status} />
                                                     {order.status}
                                                 </span>
+                                            </td>
+                                            <td className="p-4">
+                                                {order.tracking_no && order.tracking_no !== 'PENDING' ? (
+                                                    <span className="text-green-400 text-xs font-mono" title={order.tracking_no}>✓ {order.tracking_no.slice(-6)}</span>
+                                                ) : order.tracking_no === 'PENDING' ? (
+                                                    <span className="text-yellow-400 text-xs">⏳</span>
+                                                ) : (
+                                                    <span className="text-gray-500 text-xs">—</span>
+                                                )}
                                             </td>
                                             <td className="p-4 text-gray-300 text-sm">{order.items_count} items</td>
                                             <td className="p-4 font-mono text-rudark-volt font-bold">RM {order.total_amount.toFixed(2)}</td>
@@ -416,6 +426,17 @@ export default function OrdersPage() {
                                             <td className="p-4 text-gray-400 text-xs">{formatDate(order.created_at)}</td>
                                             <td className="p-4">
                                                 <div className="flex items-center gap-2">
+                                                    {order.customer_phone && (
+                                                        <a
+                                                            href={`https://wa.me/6${order.customer_phone.replace(/^0/, '')}?text=${encodeURIComponent(`Hi ${order.customer_name}, regarding your order ${order.id}...`)}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="p-1 text-green-400 hover:text-green-300"
+                                                            title="WhatsApp customer"
+                                                        >
+                                                            <MessageCircle size={16} />
+                                                        </a>
+                                                    )}
                                                     {order.status === 'PAID' && (
                                                         <button
                                                             onClick={() => {

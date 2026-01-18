@@ -148,7 +148,27 @@ export async function getOrders(filter: OrderFilter = {}): Promise<OrderSummary[
         }
 
         // Re-sort because merging queries might break order
-        orders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        // Handle null/invalid created_at by falling back to order ID timestamp
+        orders.sort((a, b) => {
+            const getTimestamp = (order: OrderSummary): number => {
+                // Try created_at first
+                if (order.created_at) {
+                    const d = new Date(order.created_at).getTime();
+                    if (!isNaN(d)) return d;
+                }
+                // Try updated_at
+                if (order.updated_at) {
+                    const d = new Date(order.updated_at).getTime();
+                    if (!isNaN(d)) return d;
+                }
+                // Extract timestamp from order ID (format: ORD-1768696998925)
+                const match = order.id.match(/ORD-(\d+)/);
+                if (match) return parseInt(match[1], 10);
+                // Fallback to 0
+                return 0;
+            };
+            return getTimestamp(b) - getTimestamp(a);
+        });
 
         return orders;
     } catch (error) {
