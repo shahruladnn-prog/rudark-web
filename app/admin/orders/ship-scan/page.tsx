@@ -381,19 +381,94 @@ export default function ShipScanPage() {
                     </button>
                 </div>
 
-                {/* Camera Scanner Toggle */}
+                {/* Native Camera Capture - More reliable on mobile */}
+                <div style={{ marginBottom: '12px' }}>
+                    <label
+                        htmlFor="camera-input"
+                        style={{
+                            display: 'block',
+                            width: '100%',
+                            padding: '16px',
+                            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(99, 102, 241, 0.2))',
+                            color: '#60A5FA',
+                            border: '2px solid rgba(59, 130, 246, 0.4)',
+                            borderRadius: '12px',
+                            cursor: 'pointer',
+                            fontSize: '16px',
+                            fontWeight: 'bold',
+                            textAlign: 'center'
+                        }}
+                    >
+                        📸 Take Photo of Tracking Label (Recommended for Mobile)
+                    </label>
+                    <input
+                        id="camera-input"
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        style={{ display: 'none' }}
+                        onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+
+                            setLoading(true);
+                            setError(null);
+
+                            try {
+                                // Try to use BarcodeDetector API (available in Chrome/Edge)
+                                if ('BarcodeDetector' in window) {
+                                    const barcodeDetector = new (window as any).BarcodeDetector({
+                                        formats: ['code_128', 'code_39', 'ean_13', 'ean_8', 'qr_code']
+                                    });
+
+                                    const img = new Image();
+                                    img.src = URL.createObjectURL(file);
+                                    await new Promise((resolve) => { img.onload = resolve; });
+
+                                    const barcodes = await barcodeDetector.detect(img);
+                                    if (barcodes.length > 0) {
+                                        const tracking = barcodes[0].rawValue;
+                                        playSound('beep');
+                                        setTrackingInput(tracking);
+                                        handleLookup(tracking);
+                                    } else {
+                                        setError('No barcode detected in image. Try again or enter manually.');
+                                    }
+                                } else {
+                                    // Fallback: Ask user to enter manually
+                                    setError('Barcode detection not supported in this browser. Please enter the tracking number manually.');
+                                }
+                            } catch (err: any) {
+                                console.error('Barcode detection error:', err);
+                                setError('Failed to detect barcode: ' + err.message);
+                            } finally {
+                                setLoading(false);
+                                e.target.value = ''; // Reset input
+                            }
+                        }}
+                    />
+                    <p style={{
+                        fontSize: '12px',
+                        color: 'rgba(255,255,255,0.5)',
+                        textAlign: 'center',
+                        marginTop: '8px'
+                    }}>
+                        Works best with clear, close-up photos
+                    </p>
+                </div>
+
+                {/* Camera Scanner Toggle - html5-qrcode (Desktop/Some browsers) */}
                 <button
                     onClick={toggleScanner}
                     style={{
                         width: '100%',
-                        padding: '16px',
-                        background: scannerActive ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)',
+                        padding: '12px',
+                        background: scannerActive ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.1)',
                         color: scannerActive ? '#F87171' : '#4ADE80',
-                        border: `2px solid ${scannerActive ? 'rgba(239, 68, 68, 0.4)' : 'rgba(34, 197, 94, 0.4)'}`,
-                        borderRadius: '12px',
+                        border: `1px solid ${scannerActive ? 'rgba(239, 68, 68, 0.3)' : 'rgba(34, 197, 94, 0.3)'}`,
+                        borderRadius: '8px',
                         cursor: 'pointer',
-                        fontSize: '16px',
-                        fontWeight: 'bold',
+                        fontSize: '14px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -401,12 +476,13 @@ export default function ShipScanPage() {
                     }}
                 >
                     {scannerActive ? (
-                        <>❌ Close Camera Scanner</>
+                        <>❌ Close Live Scanner</>
                     ) : (
-                        <>📷 Open Camera Scanner</>
+                        <>📷 Live Camera Scanner (Desktop)</>
                     )}
                 </button>
             </div>
+
 
             {/* Camera Scanner Container */}
             <div
