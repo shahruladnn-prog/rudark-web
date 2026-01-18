@@ -66,19 +66,27 @@ export async function POST(req: NextRequest) {
             // TODO: In production, this should fail. For now, allow but log heavily.
         }
 
+        // CHIP sends webhooks in different formats depending on the event
+        // Format 1 (nested): { type: "purchase", purchase: { id, reference, ... } }
+        // Format 2 (flat): { id, reference, status, ... }
+        // We need to handle both cases
+
+        const purchase = payload.purchase || payload; // Try nested first, then assume flat
+        const eventType = payload.type || `purchase.${payload.status}`; // Derive event type
+
         console.log('[CHIP Webhook] Received:', {
-            event: payload.type,
-            purchaseId: payload.purchase?.id,
-            reference: payload.purchase?.reference
+            event: eventType,
+            purchaseId: purchase?.id,
+            reference: purchase?.reference,
+            order_id: purchase?.order_id,
+            rawPayloadKeys: Object.keys(payload)
         });
 
-        // Extract event data
-        const eventType = payload.type;
-        const purchase = payload.purchase;
-        const orderId = purchase?.reference || purchase?.order_id;
+        // Extract order ID - try multiple possible field names
+        const orderId = purchase?.reference || purchase?.order_id || payload.reference || payload.order_id;
 
         if (!orderId) {
-            console.error('[CHIP Webhook] No order ID found in payload');
+            console.error('[CHIP Webhook] No order ID found in payload. Full payload:', JSON.stringify(payload, null, 2));
             return NextResponse.json({ error: 'No order ID' }, { status: 400 });
         }
 
