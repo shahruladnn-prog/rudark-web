@@ -453,34 +453,77 @@ export async function getOrderByTrackingNo(trackingNo: string): Promise<{
         };
 
         // Search by tracking_no
+        console.log(`[GetOrderByTracking] Searching for tracking: ${trackingNo}`);
         const snapshot = await adminDb.collection('orders')
             .where('tracking_no', '==', trackingNo)
             .limit(1)
             .get();
 
-        if (snapshot.empty) {
-            // Also check parcelasia_shipment_id as fallback
-            const fallbackSnapshot = await adminDb.collection('orders')
-                .where('parcelasia_shipment_id', '==', trackingNo)
-                .limit(1)
-                .get();
-
-            if (fallbackSnapshot.empty) {
-                return { success: false, error: 'Order not found for this tracking number' };
-            }
-
-            const doc = fallbackSnapshot.docs[0];
+        if (!snapshot.empty) {
+            const doc = snapshot.docs[0];
+            console.log(`[GetOrderByTracking] Found by tracking_no: ${doc.id}`);
             return {
                 success: true,
                 order: serializeOrder(doc.id, doc.data())
             };
         }
 
-        const doc = snapshot.docs[0];
-        return {
-            success: true,
-            order: serializeOrder(doc.id, doc.data())
-        };
+        // Also check parcelasia_shipment_id as fallback
+        const fallbackSnapshot = await adminDb.collection('orders')
+            .where('parcelasia_shipment_id', '==', trackingNo)
+            .limit(1)
+            .get();
+
+        if (!fallbackSnapshot.empty) {
+            const doc = fallbackSnapshot.docs[0];
+            console.log(`[GetOrderByTracking] Found by shipment_id: ${doc.id}`);
+            return {
+                success: true,
+                order: serializeOrder(doc.id, doc.data())
+            };
+        }
+
+        // NEW: If not found, try to find orders that are READY_TO_SHIP and match their ParcelAsia tracking
+        console.log(`[GetOrderByTracking] Not found in DB, checking ParcelAsia for READY_TO_SHIP orders...`);
+
+        const readyOrdersSnapshot = await adminDb.collection('orders')
+            .where('shipping_status', '==', 'READY_TO_SHIP')
+            .get();
+
+        console.log(`[GetOrderByTracking] Found ${readyOrdersSnapshot.size} READY_TO_SHIP orders to check`);
+
+        for (const doc of readyOrdersSnapshot.docs) {
+            const orderData = doc.data();
+            const shipmentId = orderData.parcelasia_shipment_id;
+
+            if (!shipmentId) continue;
+
+            // Fetch tracking from ParcelAsia
+            const trackingResult = await fetchTrackingFromParcelAsia(shipmentId);
+
+            if (trackingResult.success && trackingResult.tracking_no === trackingNo) {
+                console.log(`[GetOrderByTracking] Match found! Order ${doc.id} has tracking ${trackingNo}`);
+
+                // Update the order with the tracking number
+                await adminDb.collection('orders').doc(doc.id).update({
+                    tracking_no: trackingNo,
+                    tracking_synced: true,
+                    updated_at: new Date()
+                });
+
+                // Return the updated order
+                return {
+                    success: true,
+                    order: serializeOrder(doc.id, {
+                        ...orderData,
+                        tracking_no: trackingNo,
+                        tracking_synced: true
+                    })
+                };
+            }
+        }
+
+        return { success: false, error: 'Order not found for this tracking number' };
     } catch (error: any) {
         console.error('[GetOrderByTracking] Error:', error);
         return { success: false, error: error.message };
