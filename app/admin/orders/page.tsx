@@ -47,16 +47,21 @@ function getThisWeekRange(): { from: string; to: string } {
     };
 }
 
+function getTodayRange(): { from: string; to: string } {
+    const today = new Date().toISOString().split('T')[0];
+    return { from: today, to: today };
+}
+
 export default function OrdersPage() {
-    const thisWeek = useMemo(() => getThisWeekRange(), []);
+    const today = useMemo(() => getTodayRange(), []);
 
     const [allOrders, setAllOrders] = useState<OrderSummary[]>([]);
     const [stats, setStats] = useState({ total: 0, pending: 0, paid: 0, shipped: 0, completed: 0, cancelled: 0, totalRevenue: 0 });
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
-    const [dateFrom, setDateFrom] = useState(thisWeek.from);
-    const [dateTo, setDateTo] = useState(thisWeek.to);
+    const [dateFrom, setDateFrom] = useState(today.from);
+    const [dateTo, setDateTo] = useState(today.to);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize] = useState(20);
     const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
@@ -254,7 +259,7 @@ export default function OrdersPage() {
                         <button
                             key={range}
                             onClick={() => handleQuickDate(range as any)}
-                            className={`px-3 py-1 text-xs border rounded-sm whitespace-nowrap ${(range === 'week' && dateFrom === thisWeek.from) ? 'border-rudark-volt text-rudark-volt' : 'border-rudark-grey text-gray-400'
+                            className={`px-3 py-1 text-xs border rounded-sm whitespace-nowrap ${(range === 'today' && dateFrom === today.from) ? 'border-rudark-volt text-rudark-volt' : 'border-rudark-grey text-gray-400'
                                 }`}
                         >
                             {range.charAt(0).toUpperCase() + range.slice(1)}

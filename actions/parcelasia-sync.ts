@@ -483,16 +483,18 @@ export async function getOrderByTrackingNo(trackingNo: string): Promise<{
             };
         }
 
-        // NEW: If not found, try to find orders that are READY_TO_SHIP and match their ParcelAsia tracking
-        console.log(`[GetOrderByTracking] Not found in DB, checking ParcelAsia for READY_TO_SHIP orders...`);
+        // NEW: If not found, try to find orders that have a parcelasia_shipment_id and match their ParcelAsia tracking
+        console.log(`[GetOrderByTracking] Not found in DB, checking ParcelAsia for orders with shipment IDs...`);
 
-        const readyOrdersSnapshot = await adminDb.collection('orders')
-            .where('shipping_status', '==', 'READY_TO_SHIP')
+        // Check orders that are PAID or READY_TO_SHIP (orders that would have a shipment created)
+        const paidOrdersSnapshot = await adminDb.collection('orders')
+            .where('status', 'in', ['PAID', 'READY_TO_SHIP', 'SHIPPED'])
+            .limit(50)
             .get();
 
-        console.log(`[GetOrderByTracking] Found ${readyOrdersSnapshot.size} READY_TO_SHIP orders to check`);
+        console.log(`[GetOrderByTracking] Found ${paidOrdersSnapshot.size} orders to check`);
 
-        for (const doc of readyOrdersSnapshot.docs) {
+        for (const doc of paidOrdersSnapshot.docs) {
             const orderData = doc.data();
             const shipmentId = orderData.parcelasia_shipment_id;
 
