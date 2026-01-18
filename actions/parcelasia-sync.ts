@@ -101,8 +101,20 @@ export async function fetchTrackingFromParcelAsia(shipmentKey: string): Promise<
         console.log(`[FetchTracking] Full API Response:`, JSON.stringify(data, null, 2));
 
         if (data.status === true && data.data) {
-            // Response could be array or object depending on API
-            const shipment = Array.isArray(data.data) ? data.data[0] : data.data;
+            // Response is an OBJECT keyed by shipment_key (not array!)
+            // e.g., { "77cf84021b8f5db94e25c858a6b0c8ac": { shipment details } }
+            let shipment: any;
+
+            if (Array.isArray(data.data)) {
+                shipment = data.data[0];
+            } else if (typeof data.data === 'object') {
+                // Get first shipment from keyed object
+                const keys = Object.keys(data.data);
+                if (keys.length > 0) {
+                    shipment = data.data[keys[0]];
+                    console.log(`[FetchTracking] Extracted shipment from key: ${keys[0]}`);
+                }
+            }
 
             if (!shipment) {
                 return {
@@ -114,6 +126,7 @@ export async function fetchTrackingFromParcelAsia(shipmentKey: string): Promise<
             // Log shipment object to see all available fields
             console.log(`[FetchTracking] Shipment object keys:`, Object.keys(shipment));
             console.log(`[FetchTracking] Shipment status:`, shipment.shipment_status);
+            console.log(`[FetchTracking] Tracking no:`, shipment.tracking_no);
 
             // Check ALL possible tracking number field names from ParcelAsia API
             const trackingNo = shipment.tracking_no
@@ -203,17 +216,36 @@ export async function checkoutShipment(shipmentKey: string): Promise<{
             // First try to extract tracking from the checkout response itself
             let trackingNo: string | undefined;
 
-            // The checkout response may contain tracking info directly
+            // The checkout response contains tracking in data.shipments object
+            // Format: { data: { shipments: { "<shipment_key>": { tracking_no: "..." } } } }
             if (data.data) {
-                const checkoutData = Array.isArray(data.data) ? data.data[0] : data.data;
-                if (checkoutData) {
-                    trackingNo = checkoutData.tracking_no
-                        || checkoutData.awb_no
-                        || checkoutData.consignment_no
-                        || checkoutData.tracking_number;
+                // Check for tracking in data.shipments (keyed by shipment_key)
+                if (data.data.shipments && typeof data.data.shipments === 'object') {
+                    const shipmentKeys = Object.keys(data.data.shipments);
+                    if (shipmentKeys.length > 0) {
+                        const shipment = data.data.shipments[shipmentKeys[0]];
+                        trackingNo = shipment?.tracking_no
+                            || shipment?.awb_no
+                            || shipment?.consignment_no;
 
-                    if (trackingNo) {
-                        console.log(`[ParcelAsia Checkout] Found tracking in checkout response: ${trackingNo}`);
+                        if (trackingNo) {
+                            console.log(`[ParcelAsia Checkout] Found tracking in shipments object: ${trackingNo}`);
+                        }
+                    }
+                }
+
+                // Fallback: check direct fields on data.data
+                if (!trackingNo) {
+                    const checkoutData = Array.isArray(data.data) ? data.data[0] : data.data;
+                    if (checkoutData) {
+                        trackingNo = checkoutData.tracking_no
+                            || checkoutData.awb_no
+                            || checkoutData.consignment_no
+                            || checkoutData.tracking_number;
+
+                        if (trackingNo) {
+                            console.log(`[ParcelAsia Checkout] Found tracking in checkout response: ${trackingNo}`);
+                        }
                     }
                 }
             }
