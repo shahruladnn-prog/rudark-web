@@ -103,8 +103,8 @@ export default function ShipScanPage() {
                 setError(result.error || 'Order not found');
                 playSound('error');
             }
-        } catch (err) {
-            setError('Failed to lookup order');
+        } catch (err: any) {
+            setError('Failed to lookup order: ' + (err?.message || String(err)));
             playSound('error');
         } finally {
             setLoading(false);

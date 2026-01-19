@@ -20,20 +20,21 @@ export default function AnimatedLogo() {
         if (typeof window === "undefined") return;
 
         const loadImages = async () => {
-            const loadedImages: HTMLImageElement[] = [];
             const imageCount = 64;
+            const imagePromises: Promise<HTMLImageElement>[] = [];
 
+            // Load all images in parallel for faster loading
             for (let i = 1; i <= imageCount; i++) {
                 const img = new Image();
                 const paddedIndex = i.toString().padStart(3, '0');
                 img.src = `/Sequence_Logo/ezgif-frame-${paddedIndex}.jpg`;
-                await new Promise((resolve) => {
-                    img.onload = resolve;
-                    img.onerror = resolve;
-                });
-                loadedImages.push(img);
+                imagePromises.push(new Promise((resolve) => {
+                    img.onload = () => resolve(img);
+                    img.onerror = () => resolve(img);
+                }));
             }
 
+            const loadedImages = await Promise.all(imagePromises);
             setImages(loadedImages);
             setIsLoading(false);
         };

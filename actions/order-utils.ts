@@ -190,7 +190,13 @@ export async function processSuccessfulOrder(orderId: string) {
 
                     const totalAmount = Number(order.total_amount);
 
-                    const receiptPayload = {
+                    // Calculate discount amount
+                    const discountAmount = Number(order.discount_amount || 0);
+
+                    // Loyverse Web Order Discount ID (created in Loyverse Back Office)
+                    const WEB_ORDER_DISCOUNT_ID = '824222de-b939-4647-aec6-4f8d0f1e0e13';
+
+                    const receiptPayload: any = {
                         receipt_number: `R-${orderId}`,
                         note: `Web Order ${orderId}`,
                         order_id: orderId,
@@ -202,6 +208,16 @@ export async function processSuccessfulOrder(orderId: string) {
                             amount_money: { amount: totalAmount, currency: 'MYR' }
                         }]
                     };
+
+                    // Add discount if there is one
+                    if (discountAmount > 0) {
+                        receiptPayload.total_discounts = [{
+                            id: WEB_ORDER_DISCOUNT_ID,  // Loyverse requires 'id' of existing discount
+                            money_amount: discountAmount,  // Don't set 'type' when using existing discount ID
+                            scope: 'RECEIPT'
+                        }];
+                        console.log(`[ProcessOrder] Adding discount of RM${discountAmount} to receipt`);
+                    }
 
                     console.log('[ProcessOrder] Receipt Payload:', JSON.stringify(receiptPayload, null, 2));
 

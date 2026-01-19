@@ -126,19 +126,12 @@ export default function ProductDetails({
                 </div>
             )}
 
-            {/* Stock Display */}
-            {activeVariant && currentStock !== undefined && (
+            {/* Stock Status Display (without exact numbers) */}
+            {activeVariant && (
                 <div className="mb-6">
                     <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-400">SKU:</span>
                         <span className="text-sm font-mono text-rudark-volt">{currentSku}</span>
-                        <span className="text-sm text-gray-400">•</span>
-                        <span className={`text-sm font-mono font-bold ${currentStock > 10 ? 'text-green-400' :
-                                currentStock > 0 ? 'text-orange-400' :
-                                    'text-red-400'
-                            }`}>
-                            {currentStock > 0 ? `${currentStock} units available` : 'Out of stock'}
-                        </span>
                     </div>
                 </div>
             )}

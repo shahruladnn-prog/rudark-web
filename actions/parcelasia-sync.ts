@@ -435,20 +435,37 @@ export async function getOrderByTrackingNo(trackingNo: string): Promise<{
             return { success: false, error: 'Invalid tracking number' };
         }
 
-        // Helper to serialize Firestore timestamps
-        const serializeOrder = (id: string, data: any) => {
-            const serialized: any = { id };
-            for (const [key, value] of Object.entries(data)) {
-                if (value && typeof value === 'object' && 'toDate' in value) {
-                    // Convert Firestore Timestamp to ISO string
-                    serialized[key] = (value as any).toDate().toISOString();
-                } else if (value && typeof value === 'object' && '_seconds' in value) {
-                    // Handle serialized timestamp format
-                    serialized[key] = new Date((value as any)._seconds * 1000).toISOString();
-                } else {
-                    serialized[key] = value;
-                }
+        // Helper to recursively serialize Firestore timestamps (handles nested objects)
+        const serializeValue = (value: any): any => {
+            if (value === null || value === undefined) {
+                return value;
             }
+            // Firestore Timestamp with toDate method
+            if (typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function') {
+                return value.toDate().toISOString();
+            }
+            // Serialized timestamp format {_seconds, _nanoseconds}
+            if (typeof value === 'object' && '_seconds' in value && '_nanoseconds' in value) {
+                return new Date(value._seconds * 1000).toISOString();
+            }
+            // Recursively handle arrays
+            if (Array.isArray(value)) {
+                return value.map(item => serializeValue(item));
+            }
+            // Recursively handle nested objects
+            if (typeof value === 'object') {
+                const serialized: any = {};
+                for (const [k, v] of Object.entries(value)) {
+                    serialized[k] = serializeValue(v);
+                }
+                return serialized;
+            }
+            return value;
+        };
+
+        const serializeOrder = (id: string, data: any) => {
+            const serialized = serializeValue(data);
+            serialized.id = id;
             return serialized;
         };
 
