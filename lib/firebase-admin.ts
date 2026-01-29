@@ -44,10 +44,13 @@ if (!globalWithFirebase.firebaseAdminApp) {
 if (!globalWithFirebase.adminDb) {
     if (globalWithFirebase.firebaseAdminApp) {
         globalWithFirebase.adminDb = globalWithFirebase.firebaseAdminApp.firestore();
-        console.log("[Firebase Admin] Firestore instance created.");
+        // Ignore undefined properties to prevent errors during updates
+        globalWithFirebase.adminDb.settings({ ignoreUndefinedProperties: true });
+        console.log("[Firebase Admin] Firestore instance created with ignoreUndefinedProperties.");
     } else {
         // Fallback if something went wrong
         globalWithFirebase.adminDb = admin.firestore();
+        globalWithFirebase.adminDb.settings({ ignoreUndefinedProperties: true });
     }
 }
 

@@ -251,7 +251,7 @@ export default function OrderDetailPage({ params }: PageParams) {
                                     </div>
                                     <div className="text-right">
                                         <div className="text-white">x{item.quantity}</div>
-                                        <div className="text-rudark-volt font-mono">RM {((item.promo_price || item.web_price) * item.quantity).toFixed(2)}</div>
+                                        <div className="text-rudark-volt font-mono">RM {(item.web_price * item.quantity).toFixed(2)}</div>
                                     </div>
                                 </div>
                             ))}
