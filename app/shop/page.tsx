@@ -3,7 +3,7 @@ import { Product } from '@/types';
 import { serializeDocs } from '@/lib/serialize-firestore';
 import ShopClient from './shop-client';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60; // ISR: Refresh every 1 minute
 
 async function getProducts(): Promise<Product[]> {
     try {

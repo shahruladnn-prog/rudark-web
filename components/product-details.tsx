@@ -14,6 +14,40 @@ export default function ProductDetails({
     // Initialize default options
     const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
 
+    // Client-side stock fetching for live data
+    const [liveStock, setLiveStock] = useState<Record<string, number>>(variantStock);
+    const [stockLoading, setStockLoading] = useState(true);
+
+    // Fetch stock client-side for fresh data
+    useEffect(() => {
+        const fetchStock = async () => {
+            try {
+                // Get all variant SKUs
+                const skus = (product.variants || [])
+                    .filter(v => v.stock_status !== 'ARCHIVED')
+                    .map(v => v.sku);
+
+                if (skus.length === 0) {
+                    setStockLoading(false);
+                    return;
+                }
+
+                const response = await fetch(`/api/stock?skus=${skus.join(',')}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setLiveStock(data.stocks || {});
+                }
+            } catch (error) {
+                console.error('Failed to fetch stock:', error);
+                // Keep initial variantStock on error
+            } finally {
+                setStockLoading(false);
+            }
+        };
+
+        fetchStock();
+    }, [product.variants]);
+
     // Auto-select first value for each option on load?
     // Or force user to select? "Force select" is safer to avoid returns.
     // Let's force select for now, or just leave empty.
@@ -44,8 +78,8 @@ export default function ProductDetails({
 
     const currentSku = activeVariant ? activeVariant.sku : product.sku;
 
-    // Get stock for current variant
-    const currentStock = activeVariant ? (variantStock[activeVariant.sku] || 0) : 0;
+    // Get stock for current variant - use liveStock for fresh data
+    const currentStock = activeVariant ? (liveStock[activeVariant.sku] || 0) : 0;
 
     // Stock Status Logic
     // If activeVariant exists, use its status
@@ -97,8 +131,9 @@ export default function ProductDetails({
                                     const variantWithOption = visibleVariants.find(v =>
                                         v.options[opt.name] === val
                                     );
-                                    const stock = variantWithOption ? (variantStock[variantWithOption.sku] || 0) : 0;
-                                    const isAvailable = stock > 0;
+                                    const stock = variantWithOption ? (liveStock[variantWithOption.sku] || 0) : 0;
+                                    // While loading, show all options as available (clickable)
+                                    const isAvailable = stockLoading || stock > 0;
                                     const isSelected = selectedOptions[opt.name] === val;
 
                                     return (

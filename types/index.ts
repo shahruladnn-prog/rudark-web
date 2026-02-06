@@ -11,6 +11,10 @@ export interface ProductVariant {
     stock_status: 'IN_STOCK' | 'LOW' | 'OUT' | 'ARCHIVED' | 'CONTACT_US';
     options: Record<string, string>; // { "Size": "S", "Color": "Red" }
     image?: string; // Optional specific image
+    // Stock tracking (synced from Loyverse)
+    stock_quantity?: number;
+    reserved_quantity?: number;
+    loyverse_variant_id?: string;
 }
 
 export interface Product {

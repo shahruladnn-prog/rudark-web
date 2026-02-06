@@ -2,6 +2,7 @@
 
 import { Product } from '@/types';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 
 // Component
@@ -42,10 +43,12 @@ export default function ProductCard({ product }: { product: Product }) {
 
             <Link href={`/product/${product.sku}`} className="block relative aspect-[4/5] bg-white/5 overflow-hidden">
                 {product.images?.[0] ? (
-                    <img
+                    <Image
                         src={product.images[0]}
                         alt={product.name}
-                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                        className="object-cover transform group-hover:scale-105 transition-transform duration-500"
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-600 font-mono text-xs">

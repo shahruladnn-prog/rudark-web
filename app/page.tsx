@@ -7,7 +7,7 @@ import ActivityGrid from '@/components/activity-grid';
 import FeaturedStory from '@/components/featured-story';
 import { getCategories } from '@/actions/category-actions';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 120; // ISR: Refresh every 2 minutes
 
 // Lazy load AnimatedLogo to defer framer-motion loading
 const AnimatedLogo = dynamicImport(() => import('@/components/animated-logo'), {

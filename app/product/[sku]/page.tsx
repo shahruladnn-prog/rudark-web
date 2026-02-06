@@ -2,10 +2,9 @@ import { adminDb } from '@/lib/firebase-admin';
 import { serializeDoc } from '@/lib/serialize-firestore';
 import { Product } from '@/types';
 import { notFound } from 'next/navigation';
-import { loyverse } from '@/lib/loyverse';
 import ProductDetails from '@/components/product-details';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 300; // ISR: Refresh every 5 minutes
 
 async function getProduct(sku: string) {
     try {
@@ -21,40 +20,23 @@ async function getProduct(sku: string) {
     }
 }
 
-async function getVariantStock(product: Product): Promise<Record<string, number>> {
+// Get stock from Firebase product data (no external API calls)
+// Fresh stock is fetched client-side via /api/stock for real-time updates
+function getVariantStock(product: Product): Record<string, number> {
     try {
-        // Fetch items and inventory from Loyverse
-        const [itemsData, inventoryData] = await Promise.all([
-            loyverse.getItems(),
-            loyverse.getInventory()
-        ]);
-
-        // Build variant_id → stock map
-        const stockMap = new Map<string, number>();
-        inventoryData.inventory_levels.forEach((inv: any) => {
-            stockMap.set(inv.variant_id, inv.in_stock || 0);
-        });
-
-        // Map product variant SKUs to stock
         const variantStock: Record<string, number> = {};
 
         if (product.variants && product.variants.length > 0) {
             for (const variant of product.variants) {
-                // Find variant_id by SKU
-                for (const item of itemsData.items) {
-                    const loyverseVariant = item.variants.find((v: any) => v.sku === variant.sku);
-                    if (loyverseVariant) {
-                        const stock = stockMap.get(loyverseVariant.variant_id) || 0;
-                        variantStock[variant.sku] = stock;
-                        break;
-                    }
-                }
+                // Use Firebase stock data (synced from Loyverse)
+                const available = (variant.stock_quantity || 0) - (variant.reserved_quantity || 0);
+                variantStock[variant.sku] = Math.max(0, available);
             }
         }
 
         return variantStock;
     } catch (error) {
-        console.error('Error fetching variant stock:', error);
+        console.error('Error getting variant stock:', error);
         return {};
     }
 }
@@ -67,8 +49,8 @@ export default async function ProductPage({ params }: { params: Promise<{ sku: s
         notFound();
     }
 
-    // Fetch stock for all variants
-    const variantStock = await getVariantStock(product);
+    // Get initial stock from Firebase data (client-side will fetch fresh data)
+    const variantStock = getVariantStock(product);
 
     const isOutOfStock = product.stock_status === 'OUT';
 
