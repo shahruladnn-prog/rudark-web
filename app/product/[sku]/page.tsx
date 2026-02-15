@@ -4,7 +4,7 @@ import { Product } from '@/types';
 import { notFound } from 'next/navigation';
 import ProductDetails from '@/components/product-details';
 
-export const revalidate = 300; // ISR: Refresh every 5 minutes
+// On-demand static — generated on first visit, rebuilt via revalidatePath()
 
 async function getProduct(sku: string) {
     try {

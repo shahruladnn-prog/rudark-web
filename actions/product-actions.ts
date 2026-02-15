@@ -71,6 +71,13 @@ export async function saveProduct(productData: Partial<Product>) {
             updated_at: now
         };
 
+        // Detect SKU changes for ghost page cleanup
+        let oldSku: string | undefined;
+        if (id) {
+            const existingDoc = await adminDb.collection('products').doc(id).get();
+            oldSku = existingDoc.data()?.sku;
+        }
+
         if (id) {
             // Update existing
             await adminDb.collection('products').doc(id).update(payload);
@@ -86,8 +93,18 @@ export async function saveProduct(productData: Partial<Product>) {
 
         revalidatePath('/admin/products');
         revalidatePath(`/admin/products/${id}`);
-        revalidatePath('/shop', 'layout'); // Update all shop listing pages
-        revalidatePath('/', 'layout'); // Update everything to be safe
+        revalidatePath('/shop');
+        revalidatePath('/');
+
+        // Revalidate the specific product page
+        const currentSku = data.sku;
+        if (currentSku) {
+            revalidatePath(`/product/${currentSku}`);
+        }
+        // If SKU changed, also purge the old URL (ghost page cleanup)
+        if (oldSku && oldSku !== currentSku) {
+            revalidatePath(`/product/${oldSku}`);
+        }
 
         return { success: true };
     } catch (error) {
@@ -101,8 +118,19 @@ export async function saveProduct(productData: Partial<Product>) {
  */
 export async function deleteProduct(id: string) {
     try {
-        await adminDb.collection('products').doc(id).delete();
+        // Fetch product first to get SKU for cache purge
+        const productRef = adminDb.collection('products').doc(id);
+        const productSnap = await productRef.get();
+        const sku = productSnap.data()?.sku;
+
+        await productRef.delete();
+
         revalidatePath('/admin/products');
+        revalidatePath('/shop');
+        revalidatePath('/');
+        if (sku) {
+            revalidatePath(`/product/${sku}`);
+        }
         return { success: true };
     } catch (error: any) {
         console.error('[deleteProduct] Error:', error);

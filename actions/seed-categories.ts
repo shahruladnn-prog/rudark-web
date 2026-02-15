@@ -140,7 +140,8 @@ export async function seedCategories() {
             // Dynamic import to avoid build issues if mixed envs
             const { revalidatePath } = await import('next/cache');
             revalidatePath('/admin/categories', 'page');
-            revalidatePath('/', 'layout');
+            revalidatePath('/');
+            revalidatePath('/shop');
             console.log("[Seed] Cache Revalidated.");
         } catch (e) {
             console.error("[Seed] Revalidate Error:", e);
