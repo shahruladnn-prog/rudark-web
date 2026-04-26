@@ -6,6 +6,8 @@ import { AuthProvider } from '@/components/auth-provider';
 import { DialogProvider } from '@/components/ui/dialog';
 import { ToastProvider } from '@/components/ui/toast';
 import LayoutWrapper from '@/components/layout-wrapper';
+import AnalyticsProvider from '@/components/analytics-provider';
+import { Analytics } from '@vercel/analytics/react';
 
 import { getCategories } from '@/actions/category-actions';
 import { getSettings } from '@/actions/settings-actions';
@@ -32,10 +34,11 @@ const blackOpsOne = Black_Ops_One({
 export const metadata: Metadata = {
   title: "Rud'Ark PRO SHOP",
   description: "Premium technical gear for aquatic dominance.",
+  metadataBase: new URL('https://rudark-web.vercel.app'),
   icons: {
-    icon: '/Icon White.png',        // White icon for dark browser tabs
+    icon: '/Icon White.png',
     shortcut: '/Icon White.png',
-    apple: '/Icon Black.png',       // Black outline for light Apple devices
+    apple: '/Icon Black.png',
   },
   openGraph: {
     title: "Rud'Ark PRO SHOP",
@@ -52,6 +55,12 @@ export const metadata: Metadata = {
     ],
     locale: 'en_US',
     type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: "Rud'Ark PRO SHOP",
+    description: "Premium technical gear for aquatic dominance.",
+    images: ['/logo.png'],
   },
 };
 
@@ -89,6 +98,8 @@ export default async function RootLayout({
                 <LayoutWrapper categories={categories} settings={settings}>
                   {children}
                 </LayoutWrapper>
+                <Analytics />
+                <AnalyticsProvider />
               </CartProvider>
             </ToastProvider>
           </DialogProvider>

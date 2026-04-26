@@ -30,40 +30,40 @@ export async function POST(req: NextRequest) {
         // 3. Verify Signature
         const publicKey = await getChipPublicKey();
 
-        if (publicKey) {
-            try {
-                // CHIP uses RSA-SHA256
-                const verifier = crypto.createVerify('RSA-SHA256');
-                verifier.update(rawBody);
-                verifier.end();
+        if (!publicKey) {
+            console.error('[CHIP Webhook] ERROR: No Public Key configured. Failing closed for security.');
+            return NextResponse.json({ error: 'System misconfiguration: missing CHIP public key' }, { status: 500 });
+        }
 
-                // Convert 'x-signature' (base64) to buffer
-                const signatureBuffer = Buffer.from(signature, 'base64');
+        try {
+            // CHIP uses RSA-SHA256
+            const verifier = crypto.createVerify('RSA-SHA256');
+            verifier.update(rawBody);
+            verifier.end();
 
-                // Format public key (ensure it has PEM headers if missing)
-                // Assuming key is stored as simple clean string or full PEM
-                let formattedKey = publicKey;
-                if (!publicKey.includes('-----BEGIN PUBLIC KEY-----')) {
-                    formattedKey = `-----BEGIN PUBLIC KEY-----\n${publicKey}\n-----END PUBLIC KEY-----`;
-                }
+            // Convert 'x-signature' (base64) to buffer
+            const signatureBuffer = Buffer.from(signature, 'base64');
 
-                const isVerified = verifier.verify(formattedKey, signatureBuffer);
-
-                if (!isVerified) {
-                    console.error('[CHIP Webhook] Signature verification FAILED');
-                    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-                }
-
-                console.log('[CHIP Webhook] Signature Verified ✓');
-
-            } catch (sigError) {
-                console.error('[CHIP Webhook] Verification process error:', sigError);
-                // Fail secure
-                return NextResponse.json({ error: 'Verification error' }, { status: 401 });
+            // Format public key (ensure it has PEM headers if missing)
+            // Assuming key is stored as simple clean string or full PEM
+            let formattedKey = publicKey;
+            if (!publicKey.includes('-----BEGIN PUBLIC KEY-----')) {
+                formattedKey = `-----BEGIN PUBLIC KEY-----\n${publicKey}\n-----END PUBLIC KEY-----`;
             }
-        } else {
-            console.warn('[CHIP Webhook] WARNING: No Public Key configured. Skipping verification. THIS IS INSECURE.');
-            // TODO: In production, this should fail. For now, allow but log heavily.
+
+            const isVerified = verifier.verify(formattedKey, signatureBuffer);
+
+            if (!isVerified) {
+                console.error('[CHIP Webhook] Signature verification FAILED');
+                return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+            }
+
+            console.log('[CHIP Webhook] Signature Verified ✓');
+
+        } catch (sigError) {
+            console.error('[CHIP Webhook] Verification process error:', sigError);
+            // Fail secure
+            return NextResponse.json({ error: 'Verification error' }, { status: 401 });
         }
 
         // CHIP sends webhooks in different formats depending on the event
@@ -81,6 +81,31 @@ export async function POST(req: NextRequest) {
             order_id: purchase?.order_id,
             rawPayloadKeys: Object.keys(payload)
         });
+
+        // Idempotency: reject duplicate event delivery
+        if (purchase?.id && eventType) {
+            const eventKey = `${purchase.id}_${eventType}`;
+            const eventRef = adminDb.collection('webhook_events').doc(eventKey);
+            let alreadyProcessed = false;
+
+            await adminDb.runTransaction(async (tx) => {
+                const eventDoc = await tx.get(eventRef);
+                if (eventDoc.exists) {
+                    alreadyProcessed = true;
+                    return;
+                }
+                tx.set(eventRef, {
+                    event_type: eventType,
+                    purchase_id: purchase.id,
+                    processed_at: new Date(),
+                });
+            });
+
+            if (alreadyProcessed) {
+                console.log('[CHIP Webhook] Duplicate event, skipping:', eventKey);
+                return NextResponse.json({ received: true, status: 'already_processed' });
+            }
+        }
 
         // Extract order ID - try multiple possible field names
         const orderId = purchase?.reference || purchase?.order_id || payload.reference || payload.order_id;
@@ -106,14 +131,48 @@ export async function POST(req: NextRequest) {
 
                 // Idempotency check - prevent double processing
                 const currentOrder = orderDoc.data();
-                if (currentOrder?.status === 'PAID') {
-                    console.log('[CHIP Webhook] Order already processed, skipping:', orderId);
+                if (currentOrder?.status === 'PAID' || currentOrder?.status === 'PROCESSING') {
+                    console.log('[CHIP Webhook] Order already processed or processing, skipping:', orderId);
                     return NextResponse.json({ received: true, status: 'already_processed' });
                 }
 
-                // Update order with payment details
+                // Verify the amount paid matches what we expect for this order.
+                const expectedTotalCents = Math.round((currentOrder?.total_amount || 0) * 100);
+                const paidCents = typeof purchase?.payment?.amount === 'number' ? purchase.payment.amount : null;
+
+                if (paidCents === null) {
+                    console.error('[CHIP Webhook] No payment amount in webhook payload', { orderId, purchase });
+                    await orderRef.update({
+                        status: 'AMOUNT_VERIFICATION_FAILED',
+                        payment_verification_error: 'Missing payment.amount in webhook',
+                        updated_at: new Date()
+                    });
+                    return NextResponse.json({ received: true, status: 'verification_failed' });
+                }
+
+                const itemCount = Array.isArray(currentOrder?.items) ? currentOrder!.items.length : 1;
+                const tolerance = Math.max(itemCount, 5);
+
+                if (Math.abs(paidCents - expectedTotalCents) > tolerance) {
+                    console.error('[CHIP Webhook] Amount mismatch — refusing to mark as PAID', {
+                        orderId,
+                        expectedCents: expectedTotalCents,
+                        paidCents,
+                        diffCents: paidCents - expectedTotalCents
+                    });
+                    await orderRef.update({
+                        status: 'AMOUNT_MISMATCH',
+                        payment_amount_paid_cents: paidCents,
+                        payment_amount_expected_cents: expectedTotalCents,
+                        payment_verification_error: `Mismatch: paid ${paidCents} cents, expected ${expectedTotalCents} cents`,
+                        updated_at: new Date()
+                    });
+                    return NextResponse.json({ received: true, status: 'amount_mismatch' });
+                }
+
+                // 1. Mark as PROCESSING to lock the record
                 await orderRef.update({
-                    status: 'PAID',
+                    status: 'PROCESSING',
                     payment_status: 'paid',
                     chip_payment_data: {
                         purchase_id: purchase.id,
@@ -125,8 +184,28 @@ export async function POST(req: NextRequest) {
                     updated_at: new Date()
                 });
 
-                // Process successful order (stock deduction, Loyverse sync, etc.)
-                await processSuccessfulOrder(orderId);
+                // 2. Process fulfillment logic
+                try {
+                    await processSuccessfulOrder(orderId);
+                    
+                    // 3. Mark as PAID only after successful processing
+                    await orderRef.update({
+                        status: 'PAID',
+                        processed_at: new Date(),
+                        updated_at: new Date()
+                    });
+                    console.log('[CHIP Webhook] Fulfillment completed successfully:', orderId);
+                } catch (fulfillError: any) {
+                    console.error('[CHIP Webhook] Fulfillment CRASHED:', fulfillError);
+                    await orderRef.update({
+                        status: 'FULFILLMENT_FAILED',
+                        fulfillment_error: fulfillError?.message || String(fulfillError),
+                        updated_at: new Date()
+                    });
+                    // Still return 200/received to CHIP as we've captured the error state locally
+                    // and don't want an endless loop of retries if it's a persistent code error.
+                    return NextResponse.json({ received: true, status: 'fulfillment_failed' });
+                }
 
                 break;
 

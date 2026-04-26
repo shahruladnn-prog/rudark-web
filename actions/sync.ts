@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { Product } from '@/types';
@@ -18,6 +19,8 @@ async function fetchLoyverseInventory() {
 }
 
 export async function syncInventory() {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const loyverseItems = await fetchLoyverseInventory();
         const batch = adminDb.batch();
@@ -38,13 +41,16 @@ export async function syncInventory() {
 
         for (const item of loyverseItems) {
             const existingRef = existingProductsMap.get(item.sku);
-
-            // Calculate Stock Status
-            const status = item.stock_level > 5 ? 'IN_STOCK' : item.stock_level > 0 ? 'LOW' : 'OUT';
+            let status = 'IN_STOCK';
 
             if (existingRef) {
+                // Fetch existing data for reorder_point
+                const doc = await existingRef.get();
+                const data = doc.data();
+                const rp = data?.reorder_point ?? 5;
+                status = item.stock_level > rp ? 'IN_STOCK' : item.stock_level > 0 ? 'LOW' : 'OUT';
+
                 // EXISTING: Update ONLY operational data (Stock, ID)
-                // We DO NOT touch Name, Desc, Price, Images etc.
                 batch.update(existingRef, {
                     stock_status: status,
                     loyverse_id: item.id,
@@ -53,16 +59,17 @@ export async function syncInventory() {
                 });
                 stats.updated++;
             } else {
+                // Default threshold for new items
+                status = item.stock_level > 5 ? 'IN_STOCK' : item.stock_level > 0 ? 'LOW' : 'OUT';
                 // NEW: Create as DRAFT
-                // Needs admin attention to add content
                 const newDocRef = productsRef.doc();
                 batch.set(newDocRef, {
-                    name: item.name, // Use Loyverse name as starting point
+                    name: item.name,
                     sku: item.sku,
                     stock_status: status,
                     loyverse_id: item.id,
                     loyverse_variant_id: item.variant_id,
-                    web_price: 0, // Admin must set price
+                    web_price: 0,
                     description: 'Imported from Loyverse. Needs review.',
                     images: [],
                     category_slug: 'uncategorized',

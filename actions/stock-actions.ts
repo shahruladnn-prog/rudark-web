@@ -1,8 +1,11 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { loyverse } from '@/lib/loyverse';
 
 export async function checkStock(sku: string | undefined, variantId: string | undefined) {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     if (!sku && !variantId) return { stock: 0, status: 'UNKNOWN' };
 
     try {

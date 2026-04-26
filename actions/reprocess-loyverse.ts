@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { processSuccessfulOrder } from '@/actions/order-utils';
 import { adminDb } from '@/lib/firebase-admin';
@@ -8,11 +9,15 @@ import { adminDb } from '@/lib/firebase-admin';
  * Use this when an order failed to sync to Loyverse and you want to retry
  */
 export async function reprocessLoyverseSync(orderId: string): Promise<{
+
     success: boolean;
     message: string;
     loyverse_status?: string;
     loyverse_error?: string;
 }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
+
     try {
         if (!orderId) {
             return { success: false, message: 'Order ID is required' };

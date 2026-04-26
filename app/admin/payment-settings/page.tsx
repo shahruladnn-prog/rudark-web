@@ -1,19 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getPaymentSettings, updatePaymentSettings, toggleChipEnvironment } from '@/actions/payment-settings-actions';
+import { getPaymentSettings, updatePaymentSettings, syncLoyversePaymentTypes } from '@/actions/payment-settings-actions';
 import { PaymentSettings, PaymentGateway } from '@/types/payment-settings';
-import { CheckCircle, AlertCircle } from 'lucide-react';
+import { useToast } from '@/components/ui/toast';
+import { CheckCircle, Shield, RefreshCw, CreditCard } from 'lucide-react';
 
 export default function PaymentSettingsPage() {
+    const { showToast } = useToast();
     const [settings, setSettings] = useState<PaymentSettings | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [syncing, setSyncing] = useState(false);
 
-    useEffect(() => {
-        loadSettings();
-    }, []);
+    useEffect(() => { loadSettings(); }, []);
 
     async function loadSettings() {
         const data = await getPaymentSettings();
@@ -21,214 +21,156 @@ export default function PaymentSettingsPage() {
         setLoading(false);
     }
 
+    async function handleSyncLoyverse() {
+        setSyncing(true);
+        const result = await syncLoyversePaymentTypes();
+        if (result.success) {
+            showToast('success', `Fetched ${result.count} payment types from Loyverse`);
+            await loadSettings(); // Refresh UI with new keys
+        } else {
+            showToast('error', result.error || 'Failed to sync payment types');
+        }
+        setSyncing(false);
+    }
+
     async function handleSave() {
         if (!settings) return;
-
         setSaving(true);
-        setMessage(null);
-
         const result = await updatePaymentSettings(settings);
-
         if (result.success) {
-            setMessage({ type: 'success', text: 'Settings saved successfully!' });
+            showToast('success', 'Payment settings saved');
         } else {
-            setMessage({ type: 'error', text: result.error || 'Failed to save settings' });
+            showToast('error', result.error || 'Failed to save settings');
         }
-
         setSaving(false);
     }
 
-    async function handleGatewayChange(gateway: PaymentGateway) {
-        if (!settings) return;
-        setSettings({ ...settings, enabled_gateway: gateway });
-    }
-
-    async function handleChipEnvironmentToggle(env: 'test' | 'live') {
-        if (!settings) return;
-        setSettings({
-            ...settings,
-            chip: { ...settings.chip, environment: env }
-        });
-    }
-
-    if (loading) {
-        return (
-            <div className="p-8">
-                <div className="text-gray-400">Loading settings...</div>
-            </div>
-        );
-    }
-
-    if (!settings) {
-        return (
-            <div className="p-8">
-                <div className="text-red-400">Failed to load settings</div>
-            </div>
-        );
-    }
+    if (loading) return <div className="p-8 text-gray-400">Loading settings...</div>;
+    if (!settings) return <div className="p-8 text-red-500">Failed to load settings</div>;
 
     return (
-        <div className="p-8">
-            <div className="max-w-4xl">
-                <h1 className="text-3xl font-condensed font-bold mb-2 uppercase">Payment Gateway Settings</h1>
-                <p className="text-gray-400 mb-8">Configure payment gateways and processing options</p>
+        <div className="max-w-3xl pb-20">
+            <h1 className="text-xl font-bold text-gray-900 mb-1">Payment Settings</h1>
+            <p className="text-gray-400 text-sm mb-6">Configure payment gateways</p>
 
-                {message && (
-                    <div className={`mb-6 p-4 rounded-sm border flex items-center gap-2 ${message.type === 'success'
-                        ? 'bg-green-900/20 border-green-500 text-green-200'
-                        : 'bg-red-900/20 border-red-500 text-red-200'
-                        }`}>
-                        {message.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
-                        {message.text}
+            {/* Active gateway */}
+            <div className="bg-white border border-gray-200 rounded-lg p-5 mb-4 shadow-sm">
+                <h2 className="text-sm font-semibold text-gray-700 mb-3">Active Gateway</h2>
+                <div className="space-y-2">
+                    <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${settings.enabled_gateway === 'chip' ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                        <input type="radio" name="gateway" value="chip" checked={settings.enabled_gateway === 'chip'}
+                            onChange={() => setSettings({ ...settings, enabled_gateway: 'chip' as PaymentGateway })} />
+                        <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">CHIP Payment Gateway</div>
+                            <div className="text-xs text-gray-400">FPX, Cards, GrabPay, TNG, Boost</div>
+                        </div>
+                        <span className="flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded">
+                            <Shield size={11} /> Live Mode
+                        </span>
+                    </label>
+
+                    <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${settings.enabled_gateway === 'manual' ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                        <input type="radio" name="gateway" value="manual" checked={settings.enabled_gateway === 'manual'}
+                            onChange={() => setSettings({ ...settings, enabled_gateway: 'manual' as PaymentGateway })} />
+                        <div>
+                            <div className="text-sm font-medium text-gray-900">Manual Payment</div>
+                            <div className="text-xs text-gray-400">Bank Transfer, Cash on Collection</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            {/* CHIP info */}
+            {settings.enabled_gateway === 'chip' && (
+                <div className="bg-white border border-gray-200 rounded-lg p-5 mb-4 shadow-sm">
+                    <h2 className="text-sm font-semibold text-gray-700 mb-3">CHIP Configuration</h2>
+                    <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-100 rounded-lg mb-4">
+                        <CheckCircle size={15} className="text-green-600" />
+                        <span className="text-sm text-green-700 font-medium">Running in Live Mode — real charges are processed</span>
                     </div>
-                )}
-
-                {/* Active Gateway Selector */}
-                <div className="bg-rudark-carbon p-6 rounded-sm border border-rudark-grey mb-6">
-                    <h2 className="text-xl font-bold mb-4">Active Payment Gateway</h2>
-                    <p className="text-gray-400 text-sm mb-4">Select which payment gateway to use for all transactions</p>
-
-                    <div className="space-y-3">
-                        {/* CHIP */}
-                        <label className={`flex items-center gap-4 p-4 border rounded-sm cursor-pointer transition-all ${settings.enabled_gateway === 'chip'
-                            ? 'border-rudark-volt bg-rudark-volt/10'
-                            : 'border-rudark-grey hover:border-gray-500'
-                            }`}>
-                            <input
-                                type="radio"
-                                name="gateway"
-                                value="chip"
-                                checked={settings.enabled_gateway === 'chip'}
-                                onChange={() => handleGatewayChange('chip')}
-                                className="w-4 h-4"
-                            />
-                            <div className="flex-1">
-                                <div className="font-bold text-white">CHIP Payment Gateway</div>
-                                <div className="text-sm text-gray-400">FPX, Cards, E-wallets (GrabPay, TNG, Boost)</div>
-                            </div>
-                            {settings.enabled_gateway === 'chip' && settings.chip.environment === 'test' && (
-                                <span className="bg-yellow-500 text-black px-2 py-1 rounded text-xs font-bold">TEST MODE</span>
-                            )}
-                            {settings.enabled_gateway === 'chip' && settings.chip.environment === 'live' && (
-                                <span className="bg-green-500 text-white px-2 py-1 rounded text-xs font-bold">LIVE MODE</span>
-                            )}
-                        </label>
-
-                        {/* Manual Payment */}
-                        <label className={`flex items-center gap-4 p-4 border rounded-sm cursor-pointer transition-all ${settings.enabled_gateway === 'manual'
-                            ? 'border-rudark-volt bg-rudark-volt/10'
-                            : 'border-rudark-grey hover:border-gray-500'
-                            }`}>
-                            <input
-                                type="radio"
-                                name="gateway"
-                                value="manual"
-                                checked={settings.enabled_gateway === 'manual'}
-                                onChange={() => handleGatewayChange('manual')}
-                                className="w-4 h-4"
-                            />
-                            <div className="flex-1">
-                                <div className="font-bold text-white">Manual Payment</div>
-                                <div className="text-sm text-gray-400">Bank Transfer, Cash on Collection</div>
-                            </div>
-                        </label>
+                    <div>
+                        <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Brand ID</label>
+                        <input type="text" value={settings.chip.brand_id} readOnly
+                            className="w-full bg-gray-50 border border-gray-200 rounded px-3 py-2 text-gray-500 font-mono text-sm cursor-not-allowed" />
+                        <p className="text-xs text-gray-400 mt-1">Set via environment variable CHIP_LIVE_SECRET_KEY</p>
                     </div>
                 </div>
+            )}
 
-                {/* CHIP Configuration */}
-                {settings.enabled_gateway === 'chip' && (
-                    <div className="bg-rudark-carbon p-6 rounded-sm border border-rudark-grey mb-6">
-                        <h2 className="text-xl font-bold mb-4">CHIP Configuration</h2>
-
-                        <div className="mb-4">
-                            <label className="block text-sm font-mono text-rudark-volt mb-2 uppercase">Environment</label>
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => handleChipEnvironmentToggle('test')}
-                                    className={`flex-1 p-3 rounded-sm border font-bold transition-all ${settings.chip.environment === 'test'
-                                        ? 'bg-yellow-500 text-black border-yellow-500'
-                                        : 'bg-rudark-matte border-rudark-grey text-gray-400 hover:border-gray-500'
-                                        }`}
-                                >
-                                    🧪 Test Mode
-                                </button>
-                                <button
-                                    onClick={() => handleChipEnvironmentToggle('live')}
-                                    className={`flex-1 p-3 rounded-sm border font-bold transition-all ${settings.chip.environment === 'live'
-                                        ? 'bg-green-500 text-white border-green-500'
-                                        : 'bg-rudark-matte border-rudark-grey text-gray-400 hover:border-gray-500'
-                                        }`}
-                                >
-                                    ✅ Live Mode
-                                </button>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-2">
-                                {settings.chip.environment === 'test'
-                                    ? '⚠️ Test mode - No real charges. Use test cards: 4444 3333 2222 1111'
-                                    : '✅ Live mode - Real charges will be processed'}
-                            </p>
-                        </div>
-
-                        <div className="mb-4">
-                            <label className="block text-sm font-mono text-rudark-volt mb-2 uppercase">Brand ID</label>
-                            <input
-                                type="text"
-                                value={settings.chip.brand_id}
-                                readOnly
-                                className="w-full bg-rudark-charcoal border border-rudark-grey rounded-sm p-3 text-gray-400 cursor-not-allowed font-mono text-sm"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">Configured in environment variables</p>
-                        </div>
+            {/* Manual payment config */}
+            {settings.enabled_gateway === 'manual' && (
+                <div className="bg-white border border-gray-200 rounded-lg p-5 mb-4 shadow-sm">
+                    <h2 className="text-sm font-semibold text-gray-700 mb-3">Manual Payment Configuration</h2>
+                    <label className="flex items-center gap-2 cursor-pointer mb-4">
+                        <input type="checkbox" checked={settings.manual_payment.require_admin_approval}
+                            onChange={(e) => setSettings({ ...settings, manual_payment: { ...settings.manual_payment, require_admin_approval: e.target.checked } })}
+                            className="rounded" />
+                        <span className="text-sm text-gray-700">Require admin approval before order is confirmed</span>
+                    </label>
+                    <div>
+                        <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Payment Instructions</label>
+                        <textarea
+                            value={settings.manual_payment.payment_instructions}
+                            onChange={(e) => setSettings({ ...settings, manual_payment: { ...settings.manual_payment, payment_instructions: e.target.value } })}
+                            rows={8}
+                            className="w-full border border-gray-200 rounded px-3 py-2 text-sm text-gray-900 font-mono focus:outline-none focus:border-blue-400"
+                            placeholder="Enter payment instructions shown to customers..."
+                        />
+                        <p className="text-xs text-gray-400 mt-1">Use [ORDER_ID] as a placeholder for the order number</p>
                     </div>
-                )}
+                </div>
+            )}
 
-                {/* Manual Payment Configuration */}
-                {settings.enabled_gateway === 'manual' && (
-                    <div className="bg-rudark-carbon p-6 rounded-sm border border-rudark-grey mb-6">
-                        <h2 className="text-xl font-bold mb-4">Manual Payment Configuration</h2>
-
-                        <div className="mb-4">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={settings.manual_payment.require_admin_approval}
-                                    onChange={(e) => setSettings({
-                                        ...settings,
-                                        manual_payment: { ...settings.manual_payment, require_admin_approval: e.target.checked }
-                                    })}
-                                    className="w-4 h-4"
-                                />
-                                <span className="text-white">Require admin approval for manual payments</span>
-                            </label>
-                        </div>
-
-                        <div className="mb-4">
-                            <label className="block text-sm font-mono text-rudark-volt mb-2 uppercase">Payment Instructions</label>
-                            <textarea
-                                value={settings.manual_payment.payment_instructions}
-                                onChange={(e) => setSettings({
-                                    ...settings,
-                                    manual_payment: { ...settings.manual_payment, payment_instructions: e.target.value }
-                                })}
-                                rows={8}
-                                className="w-full bg-rudark-matte border border-rudark-grey rounded-sm p-3 text-white font-mono text-sm focus:border-rudark-volt focus:outline-none"
-                                placeholder="Enter payment instructions..."
-                            />
-                            <p className="text-xs text-gray-500 mt-1">Use [ORDER_ID] as placeholder for order ID</p>
-                        </div>
+            {/* Loyverse Mapping */}
+            <div className="bg-white border border-gray-200 rounded-lg p-5 mb-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 className="text-sm font-semibold text-gray-700">Loyverse Payment Mapping</h2>
+                        <p className="text-xs text-gray-400">Map POS payment IDs to readable labels for reports</p>
                     </div>
-                )}
-
-                {/* Save Button */}
-                <div className="flex justify-end">
-                    <button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="px-8 py-3 bg-rudark-volt text-black font-bold rounded-sm hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider"
+                    <button 
+                        type="button"
+                        onClick={handleSyncLoyverse}
+                        disabled={syncing}
+                        className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-600 rounded text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
                     >
-                        {saving ? 'Saving...' : 'Save Settings'}
+                        <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
+                        Sync from Loyverse
                     </button>
                 </div>
+
+                {!settings.loyverse_mappings || Object.keys(settings.loyverse_mappings).length === 0 ? (
+                    <div className="py-8 text-center bg-gray-50 border border-dashed border-gray-200 rounded-lg">
+                        <CreditCard size={24} className="mx-auto text-gray-300 mb-2" />
+                        <p className="text-xs text-gray-500">No payment mappings yet. Click sync to fetch them.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {Object.entries(settings.loyverse_mappings).map(([id, label]) => (
+                            <div key={id} className="flex gap-4 items-center">
+                                <div className="flex-1">
+                                    <div className="text-[10px] text-gray-400 font-mono truncate max-w-[200px] mb-1">{id}</div>
+                                    <input 
+                                        type="text" 
+                                        value={label}
+                                        onChange={(e) => {
+                                            const newMappings = { ...settings.loyverse_mappings, [id]: e.target.value };
+                                            setSettings({ ...settings, loyverse_mappings: newMappings });
+                                        }}
+                                        className="w-full bg-white border border-gray-200 rounded px-3 py-1.5 text-sm focus:border-blue-400 outline-none"
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <div className="flex justify-end">
+                <button onClick={handleSave} disabled={saving}
+                    className="px-6 py-2 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 disabled:opacity-50 text-sm">
+                    {saving ? 'Saving…' : 'Save Settings'}
+                </button>
             </div>
         </div>
     );

@@ -55,6 +55,7 @@ if (!globalWithFirebase.adminDb) {
 }
 
 const adminDb = globalWithFirebase.adminDb!;
+const adminAuth = admin.auth();
 const isFirebaseAdminMock = false;
 
-export { adminDb, isFirebaseAdminMock };
+export { adminDb, adminAuth, isFirebaseAdminMock };

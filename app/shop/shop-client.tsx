@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Product } from '@/types';
 import AddToCartButton from '@/components/add-to-cart-button';
+import NewsletterForm from '@/components/newsletter-form';
 
 interface ShopClientProps {
     initialProducts: Product[];
@@ -301,6 +302,10 @@ export default function ShopClient({ initialProducts, categories }: ShopClientPr
                     </div>
                 </div>
             )}
+
+            <div className="max-w-7xl mx-auto px-4 md:px-8 pb-20">
+                <NewsletterForm source="shop_page" />
+            </div>
         </div>
     );
 }

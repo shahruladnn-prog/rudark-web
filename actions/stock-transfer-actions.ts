@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -30,7 +31,11 @@ export async function createTransfer(data: {
     to_store_name: string;
     items: TransferItem[];
     notes?: string;
-}): Promise<{ success: boolean; transferId?: string; error?: string }> {
+}): Promise<{
+
+ success: boolean; transferId?: string; error?: string }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         // Validation
         if (!data.from_store_id || !data.to_store_id) {
@@ -76,7 +81,11 @@ export async function createTransfer(data: {
 /**
  * Approve and initiate transfer (deducts from source)
  */
-export async function approveTransfer(transferId: string): Promise<{ success: boolean; error?: string }> {
+export async function approveTransfer(transferId: string): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const docRef = adminDb.collection('stock_transfers').doc(transferId);
         const doc = await docRef.get();
@@ -132,7 +141,11 @@ export async function approveTransfer(transferId: string): Promise<{ success: bo
 /**
  * Complete transfer (add to destination)
  */
-export async function completeTransfer(transferId: string): Promise<{ success: boolean; error?: string }> {
+export async function completeTransfer(transferId: string): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const docRef = adminDb.collection('stock_transfers').doc(transferId);
         const doc = await docRef.get();
@@ -190,7 +203,11 @@ export async function completeTransfer(transferId: string): Promise<{ success: b
 /**
  * Cancel transfer (revert if approved)
  */
-export async function cancelTransfer(transferId: string, reason: string): Promise<{ success: boolean; error?: string }> {
+export async function cancelTransfer(transferId: string, reason: string): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const docRef = adminDb.collection('stock_transfers').doc(transferId);
         const doc = await docRef.get();
@@ -248,6 +265,8 @@ export async function getTransfers(options: {
     status?: TransferStatus;
     limit?: number;
 } = {}): Promise<StockTransfer[]> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const { status, limit = MAX_TRANSFERS_QUERY } = options;
 
@@ -279,6 +298,8 @@ export async function getTransfers(options: {
  * Get a single transfer by ID
  */
 export async function getTransferById(transferId: string): Promise<StockTransfer | null> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const doc = await adminDb.collection('stock_transfers').doc(transferId).get();
 

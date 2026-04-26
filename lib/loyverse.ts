@@ -97,6 +97,21 @@ export class LoyverseClient {
         });
     }
 
+    async getReceipts(params: {
+        created_at_min?: string;
+        created_at_max?: string;
+        limit?: number;
+        cursor?: string;
+    }) {
+        let endpoint = `/receipts?`;
+        if (params.created_at_min) endpoint += `&created_at_min=${params.created_at_min}`;
+        if (params.created_at_max) endpoint += `&created_at_max=${params.created_at_max}`;
+        if (params.limit) endpoint += `&limit=${params.limit}`;
+        if (params.cursor) endpoint += `&cursor=${params.cursor}`;
+
+        return this.fetch(endpoint);
+    }
+
     /**
      * Adjust inventory level for a variant
      * @param variant_id - Loyverse variant ID

@@ -1,3 +1,4 @@
+import { requireAdmin } from '@/actions/session-actions';
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteAllOrders, resetReservedStock } from '@/actions/cleanup-actions';
 import { syncStockFromLoyverse } from '@/actions/stock-sync-actions';
@@ -13,6 +14,8 @@ import { syncStockFromLoyverse } from '@/actions/stock-sync-actions';
  */
 
 export async function DELETE(req: NextRequest) {
+    try { await requireAdmin(); } catch (e: any) { return new Response(e.message, { status: 401 }); }
+
     const action = req.nextUrl.searchParams.get('action');
 
     if (action === 'orders') {
@@ -25,6 +28,8 @@ export async function DELETE(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+    try { await requireAdmin(); } catch (e: any) { return new Response(e.message, { status: 401 }); }
+
     const action = req.nextUrl.searchParams.get('action');
 
     switch (action) {
@@ -83,6 +88,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+    try { await requireAdmin(); } catch (e: any) { return new Response(e.message, { status: 401 }); }
+
     return NextResponse.json({
         message: 'Admin Cleanup Endpoint',
         usage: {

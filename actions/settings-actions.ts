@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { unstable_cache } from 'next/cache';
@@ -48,6 +49,8 @@ export const getSettings = unstable_cache(
 import { revalidatePath, revalidateTag } from 'next/cache';
 // ...
 export async function saveSettings(data: StoreSettings) {
+    await requireRole(['owner']);
+
     try {
         await adminDb.collection('settings').doc('general').set(data, { merge: true });
         // @ts-ignore

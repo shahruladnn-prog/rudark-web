@@ -5,11 +5,13 @@ import { StoreSettings } from '@/types';
 import { saveSettings } from '@/actions/settings-actions';
 import { Save, Building, Megaphone, Receipt } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/components/ui/toast';
 
 export default function SettingsForm({ initialData }: { initialData: StoreSettings }) {
     const [formData, setFormData] = useState<StoreSettings>(initialData);
     const [loading, setLoading] = useState(false);
     const router = useRouter();
+    const { showToast } = useToast();
 
     const updateField = (field: keyof StoreSettings, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -22,10 +24,10 @@ export default function SettingsForm({ initialData }: { initialData: StoreSettin
         const result = await saveSettings(formData);
 
         if (result.success) {
-            alert("Settings saved successfully!");
-            router.refresh(); // Refresh to catch revalidation
+            showToast('success', 'Settings saved!');
+            router.refresh();
         } else {
-            alert("Error saving settings.");
+            showToast('error', 'Failed to save settings');
         }
         setLoading(false);
     };

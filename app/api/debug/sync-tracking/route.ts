@@ -1,4 +1,5 @@
 'use server';
+import { requireAdmin } from '@/actions/session-actions';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
@@ -11,6 +12,8 @@ import { fetchTrackingFromParcelAsia } from '@/actions/parcelasia-sync';
  * GET /api/debug/sync-tracking?orderId=ORD-xxx
  */
 export async function GET(request: NextRequest) {
+    try { await requireAdmin(); } catch (e: any) { return new Response(e.message, { status: 401 }); }
+
     const searchParams = request.nextUrl.searchParams;
     const orderId = searchParams.get('orderId');
 

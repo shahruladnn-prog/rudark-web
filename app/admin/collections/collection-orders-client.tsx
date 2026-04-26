@@ -38,199 +38,145 @@ export default function CollectionOrdersClient({
     const [filter, setFilter] = useState<'all' | 'READY_FOR_COLLECTION' | 'COLLECTED'>('all');
     const [loading, setLoading] = useState<string | null>(null);
 
-    const filteredOrders = filter === 'all'
-        ? orders
-        : orders.filter(o => o.shipping_status === filter);
+    const filteredOrders = filter === 'all' ? orders : orders.filter(o => o.shipping_status === filter);
 
     const handleMarkCollected = async (orderId: string) => {
         setLoading(orderId);
         const result = await markAsCollected(orderId);
-
         if (result.success) {
-            // Update local state
-            setOrders(orders.map(o =>
-                o.id === orderId
-                    ? { ...o, shipping_status: 'COLLECTED' }
-                    : o
-            ));
-            setStats({
-                ...stats,
-                ready: stats.ready - 1,
-                collected: stats.collected + 1
-            });
+            setOrders(orders.map(o => o.id === orderId ? { ...o, shipping_status: 'COLLECTED' } : o));
+            setStats({ ...stats, ready: stats.ready - 1, collected: stats.collected + 1 });
         }
-
         setLoading(null);
     };
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex justify-between items-end border-b border-rudark-grey pb-6">
-                <div>
-                    <h1 className="text-4xl font-condensed font-bold text-white uppercase mb-2">
-                        Collection <span className="text-rudark-volt">Monitor</span>
-                    </h1>
-                    <p className="text-gray-400 font-mono text-sm">
-                        Track and manage self-collection orders
-                    </p>
-                </div>
+        <div className="max-w-6xl pb-20 space-y-5">
+            <div>
+                <h1 className="text-xl font-bold text-gray-900">Collection Monitor</h1>
+                <p className="text-sm text-gray-400">Track and manage self-collection orders</p>
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-rudark-carbon p-4 rounded-sm border border-rudark-grey">
-                    <div className="flex items-center gap-3">
-                        <Package className="text-gray-400" size={24} />
-                        <div>
-                            <div className="text-2xl font-bold text-white">{stats.total}</div>
-                            <div className="text-xs text-gray-400 uppercase font-mono">Total Orders</div>
-                        </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
+                    <Package className="text-gray-400" size={22} />
+                    <div>
+                        <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
+                        <div className="text-xs text-gray-400 uppercase">Total Orders</div>
                     </div>
                 </div>
-
-                <div className="bg-rudark-carbon p-4 rounded-sm border border-yellow-900/50">
-                    <div className="flex items-center gap-3">
-                        <Clock className="text-yellow-400" size={24} />
-                        <div>
-                            <div className="text-2xl font-bold text-yellow-400">{stats.ready}</div>
-                            <div className="text-xs text-gray-400 uppercase font-mono">Ready for Pickup</div>
-                        </div>
+                <div className="bg-white border border-amber-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
+                    <Clock className="text-amber-500" size={22} />
+                    <div>
+                        <div className="text-2xl font-bold text-amber-600">{stats.ready}</div>
+                        <div className="text-xs text-gray-400 uppercase">Ready for Pickup</div>
                     </div>
                 </div>
-
-                <div className="bg-rudark-carbon p-4 rounded-sm border border-green-900/50">
-                    <div className="flex items-center gap-3">
-                        <CheckCircle className="text-green-400" size={24} />
-                        <div>
-                            <div className="text-2xl font-bold text-green-400">{stats.collected}</div>
-                            <div className="text-xs text-gray-400 uppercase font-mono">Collected</div>
-                        </div>
+                <div className="bg-white border border-emerald-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
+                    <CheckCircle className="text-emerald-500" size={22} />
+                    <div>
+                        <div className="text-2xl font-bold text-emerald-600">{stats.collected}</div>
+                        <div className="text-xs text-gray-400 uppercase">Collected</div>
                     </div>
                 </div>
-
-                <div className="bg-rudark-carbon p-4 rounded-sm border border-rudark-volt/50">
-                    <div className="flex items-center gap-3">
-                        <TrendingUp className="text-rudark-volt" size={24} />
-                        <div>
-                            <div className="text-2xl font-bold text-rudark-volt">RM {stats.totalRevenue.toFixed(2)}</div>
-                            <div className="text-xs text-gray-400 uppercase font-mono">Total Revenue</div>
-                        </div>
+                <div className="bg-white border border-blue-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
+                    <TrendingUp className="text-blue-500" size={22} />
+                    <div>
+                        <div className="text-2xl font-bold text-blue-600">RM {stats.totalRevenue.toFixed(2)}</div>
+                        <div className="text-xs text-gray-400 uppercase">Total Revenue</div>
                     </div>
                 </div>
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex gap-2 bg-rudark-carbon p-2 rounded-sm border border-rudark-grey">
-                <button
-                    onClick={() => setFilter('all')}
-                    className={`px-4 py-2 rounded-sm font-mono text-sm uppercase transition-colors ${filter === 'all'
-                            ? 'bg-rudark-volt text-black font-bold'
-                            : 'text-gray-400 hover:text-white'
-                        }`}
-                >
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+                <button onClick={() => setFilter('all')}
+                    className={`px-4 py-2 rounded text-sm font-medium transition-colors ${filter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                     All ({orders.length})
                 </button>
-                <button
-                    onClick={() => setFilter('READY_FOR_COLLECTION')}
-                    className={`px-4 py-2 rounded-sm font-mono text-sm uppercase transition-colors ${filter === 'READY_FOR_COLLECTION'
-                            ? 'bg-yellow-500 text-black font-bold'
-                            : 'text-gray-400 hover:text-white'
-                        }`}
-                >
+                <button onClick={() => setFilter('READY_FOR_COLLECTION')}
+                    className={`px-4 py-2 rounded text-sm font-medium transition-colors ${filter === 'READY_FOR_COLLECTION' ? 'bg-white text-amber-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                     Ready ({stats.ready})
                 </button>
-                <button
-                    onClick={() => setFilter('COLLECTED')}
-                    className={`px-4 py-2 rounded-sm font-mono text-sm uppercase transition-colors ${filter === 'COLLECTED'
-                            ? 'bg-green-500 text-black font-bold'
-                            : 'text-gray-400 hover:text-white'
-                        }`}
-                >
+                <button onClick={() => setFilter('COLLECTED')}
+                    className={`px-4 py-2 rounded text-sm font-medium transition-colors ${filter === 'COLLECTED' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                     Collected ({stats.collected})
                 </button>
             </div>
 
             {/* Orders Table */}
-            <div className="rounded-sm border border-rudark-grey overflow-hidden">
-                <table className="w-full text-left border-collapse">
-                    <thead className="bg-rudark-carbon text-gray-400 font-condensed uppercase tracking-wider text-sm">
-                        <tr>
-                            <th className="p-4 font-bold border-b border-rudark-grey">Order #</th>
-                            <th className="p-4 font-bold border-b border-rudark-grey">Customer</th>
-                            <th className="p-4 font-bold border-b border-rudark-grey">Collection Point</th>
-                            <th className="p-4 font-bold border-b border-rudark-grey">Items</th>
-                            <th className="p-4 font-bold border-b border-rudark-grey">Total</th>
-                            <th className="p-4 font-bold border-b border-rudark-grey">Status</th>
-                            <th className="p-4 font-bold border-b border-rudark-grey text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-rudark-matte divide-y divide-rudark-grey/30">
-                        {filteredOrders.length === 0 ? (
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
                             <tr>
-                                <td colSpan={7} className="p-12 text-center text-gray-500 font-mono uppercase">
-                                    No orders found
-                                </td>
+                                <th className="p-4 font-medium border-b border-gray-100">Order #</th>
+                                <th className="p-4 font-medium border-b border-gray-100">Customer</th>
+                                <th className="p-4 font-medium border-b border-gray-100">Collection Point</th>
+                                <th className="p-4 font-medium border-b border-gray-100">Items</th>
+                                <th className="p-4 font-medium border-b border-gray-100">Total</th>
+                                <th className="p-4 font-medium border-b border-gray-100">Status</th>
+                                <th className="p-4 font-medium border-b border-gray-100 text-right">Actions</th>
                             </tr>
-                        ) : (
-                            filteredOrders.map((order) => (
-                                <tr key={order.id} className="hover:bg-rudark-carbon/50 transition-colors">
-                                    <td className="p-4">
-                                        <div className="font-mono text-rudark-volt text-sm">{order.order_number}</div>
-                                        <div className="text-xs text-gray-500">
-                                            {new Date(order.created_at).toLocaleDateString()}
-                                        </div>
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="font-bold text-white">{order.customer_name}</div>
-                                        <div className="text-xs text-gray-400">{order.customer_phone}</div>
-                                        <div className="text-xs text-gray-500">{order.customer_email}</div>
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="flex items-start gap-2">
-                                            <MapPin size={16} className="text-rudark-volt mt-0.5" />
-                                            <div>
-                                                <div className="font-bold text-white text-sm">{order.collection_point_name}</div>
-                                                <div className="text-xs text-gray-400">{order.collection_point_address}</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="text-white">{order.items?.length || 0} items</div>
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="font-mono text-white font-bold">RM {order.total_amount.toFixed(2)}</div>
-                                        <div className="text-xs text-gray-500">Fee: RM {order.collection_fee.toFixed(2)}</div>
-                                    </td>
-                                    <td className="p-4">
-                                        {order.shipping_status === 'READY_FOR_COLLECTION' ? (
-                                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-sm text-xs font-bold font-condensed uppercase tracking-wide bg-yellow-900/20 text-yellow-400 border border-yellow-900/50">
-                                                <Clock size={12} />
-                                                Ready
-                                            </span>
-                                        ) : (
-                                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-sm text-xs font-bold font-condensed uppercase tracking-wide bg-green-900/20 text-green-400 border border-green-900/50">
-                                                <CheckCircle size={12} />
-                                                Collected
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td className="p-4 text-right">
-                                        {order.shipping_status === 'READY_FOR_COLLECTION' && (
-                                            <button
-                                                onClick={() => handleMarkCollected(order.id)}
-                                                disabled={loading === order.id}
-                                                className="px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-sm hover:bg-green-500 transition-colors disabled:opacity-50 uppercase"
-                                            >
-                                                {loading === order.id ? 'Updating...' : 'Mark Collected'}
-                                            </button>
-                                        )}
-                                    </td>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {filteredOrders.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} className="p-12 text-center text-gray-400 text-sm">No orders found</td>
                                 </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+                            ) : (
+                                filteredOrders.map((order) => (
+                                    <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                                        <td className="p-4">
+                                            <div className="font-mono text-blue-600 text-sm font-medium">{order.order_number}</div>
+                                            <div className="text-xs text-gray-400">{new Date(order.created_at).toLocaleDateString()}</div>
+                                        </td>
+                                        <td className="p-4">
+                                            <div className="font-medium text-gray-900 text-sm">{order.customer_name}</div>
+                                            <div className="text-xs text-gray-500">{order.customer_phone}</div>
+                                            <div className="text-xs text-gray-400">{order.customer_email}</div>
+                                        </td>
+                                        <td className="p-4">
+                                            <div className="flex items-start gap-1.5">
+                                                <MapPin size={14} className="text-blue-500 mt-0.5 shrink-0" />
+                                                <div>
+                                                    <div className="font-medium text-gray-900 text-sm">{order.collection_point_name}</div>
+                                                    <div className="text-xs text-gray-400">{order.collection_point_address}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="p-4 text-gray-700 text-sm">{order.items?.length || 0} items</td>
+                                        <td className="p-4">
+                                            <div className="font-mono text-gray-900 font-semibold text-sm">RM {order.total_amount.toFixed(2)}</div>
+                                            <div className="text-xs text-gray-400">Fee: RM {order.collection_fee.toFixed(2)}</div>
+                                        </td>
+                                        <td className="p-4">
+                                            {order.shipping_status === 'READY_FOR_COLLECTION' ? (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-amber-50 text-amber-600 border border-amber-200">
+                                                    <Clock size={11} /> Ready
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-emerald-50 text-emerald-600 border border-emerald-200">
+                                                    <CheckCircle size={11} /> Collected
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="p-4 text-right">
+                                            {order.shipping_status === 'READY_FOR_COLLECTION' && (
+                                                <button onClick={() => handleMarkCollected(order.id)}
+                                                    disabled={loading === order.id}
+                                                    className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded hover:bg-emerald-700 disabled:opacity-50">
+                                                    {loading === order.id ? 'Updating…' : 'Mark Collected'}
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );

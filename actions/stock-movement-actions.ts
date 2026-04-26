@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -19,83 +20,92 @@ export interface StockMovement {
     store_id?: string;
     created_by?: string;
     created_at?: any;
+    effective_date?: any; // For back-dated entries
 }
 
 /**
  * Record a stock movement and update product/variant stock
  */
-export async function recordStockMovement(movement: Omit<StockMovement, 'id' | 'created_at'>): Promise<{ success: boolean; error?: string }> {
+export async function recordStockMovement(movement: Omit<StockMovement, 'id' | 'created_at'>): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
-        // Get the product
-        const productRef = adminDb.collection('products').doc(movement.product_id);
-        const productDoc = await productRef.get();
+        const result = await adminDb.runTransaction(async (transaction) => {
+            // Get the product
+            const productRef = adminDb.collection('products').doc(movement.product_id);
+            const productDoc = await transaction.get(productRef);
 
-        if (!productDoc.exists) {
-            return { success: false, error: 'Product not found' };
-        }
-
-        const product = productDoc.data()!;
-        let newQuantity: number;
-        let previousQuantity: number;
-
-        // Check if updating variant or parent
-        if (movement.variant_sku && product.variants && product.variants.length > 0) {
-            // Update specific variant
-            const variantIndex = product.variants.findIndex((v: any) => v.sku === movement.variant_sku);
-
-            if (variantIndex === -1) {
-                return { success: false, error: `Variant ${movement.variant_sku} not found` };
+            if (!productDoc.exists) {
+                throw new Error('Product not found');
             }
 
-            previousQuantity = product.variants[variantIndex].stock_quantity || 0;
-            newQuantity = previousQuantity + movement.quantity;
+            const product = productDoc.data()!;
+            let newQuantity: number;
+            let previousQuantity: number;
 
-            if (newQuantity < 0) {
-                return { success: false, error: `Cannot reduce stock below 0. Current: ${previousQuantity}, Adjustment: ${movement.quantity}` };
+            // Check if updating variant or parent
+            if (movement.variant_sku && product.variants && product.variants.length > 0) {
+                // Update specific variant
+                const variantIndex = product.variants.findIndex((v: any) => v.sku === movement.variant_sku);
+
+                if (variantIndex === -1) {
+                    throw new Error(`Variant ${movement.variant_sku} not found`);
+                }
+
+                previousQuantity = product.variants[variantIndex].stock_quantity || 0;
+                newQuantity = previousQuantity + movement.quantity;
+
+                if (newQuantity < 0) {
+                    throw new Error(`Cannot reduce stock below 0. Current: ${previousQuantity}, Adjustment: ${movement.quantity}`);
+                }
+
+                // Update variant in array
+                const updatedVariants = [...product.variants];
+                updatedVariants[variantIndex] = {
+                    ...updatedVariants[variantIndex],
+                    stock_quantity: newQuantity
+                };
+
+                // Calculate new parent total
+                const newParentTotal = updatedVariants.reduce((sum: number, v: any) => sum + (v.stock_quantity || 0), 0);
+
+                transaction.update(productRef, {
+                    variants: updatedVariants,
+                    stock_quantity: newParentTotal,
+                    updated_at: FieldValue.serverTimestamp()
+                });
+
+            } else {
+                // Update parent product directly
+                previousQuantity = product.stock_quantity || 0;
+                newQuantity = previousQuantity + movement.quantity;
+
+                if (newQuantity < 0) {
+                    throw new Error(`Cannot reduce stock below 0. Current: ${previousQuantity}, Adjustment: ${movement.quantity}`);
+                }
+
+                transaction.update(productRef, {
+                    stock_quantity: newQuantity,
+                    updated_at: FieldValue.serverTimestamp()
+                });
             }
 
-            // Update variant in array
-            const updatedVariants = [...product.variants];
-            updatedVariants[variantIndex] = {
-                ...updatedVariants[variantIndex],
-                stock_quantity: newQuantity
-            };
-
-            // Calculate new parent total
-            const newParentTotal = updatedVariants.reduce((sum: number, v: any) => sum + (v.stock_quantity || 0), 0);
-
-            await productRef.update({
-                variants: updatedVariants,
-                stock_quantity: newParentTotal,
-                updated_at: FieldValue.serverTimestamp()
+            // Record the movement
+            const movementRef = adminDb.collection('stock_movements').doc();
+            transaction.set(movementRef, {
+                ...movement,
+                previous_quantity: previousQuantity,
+                new_quantity: newQuantity,
+                created_at: FieldValue.serverTimestamp()
             });
 
-        } else {
-            // Update parent product directly
-            previousQuantity = product.stock_quantity || 0;
-            newQuantity = previousQuantity + movement.quantity;
-
-            if (newQuantity < 0) {
-                return { success: false, error: `Cannot reduce stock below 0. Current: ${previousQuantity}, Adjustment: ${movement.quantity}` };
-            }
-
-            await productRef.update({
-                stock_quantity: newQuantity,
-                updated_at: FieldValue.serverTimestamp()
-            });
-        }
-
-        // Record the movement
-        await adminDb.collection('stock_movements').add({
-            ...movement,
-            previous_quantity: previousQuantity,
-            new_quantity: newQuantity,
-            created_at: FieldValue.serverTimestamp()
+            return { success: true };
         });
 
         revalidatePath('/admin/stock');
-
-        return { success: true };
+        return result;
 
     } catch (error: any) {
         console.error('[recordStockMovement] Error:', error);
@@ -107,6 +117,8 @@ export async function recordStockMovement(movement: Omit<StockMovement, 'id' | '
  * Get stock movement history
  */
 export async function getStockMovements(limit = 50): Promise<StockMovement[]> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const snapshot = await adminDb.collection('stock_movements')
             .orderBy('created_at', 'desc')
@@ -129,6 +141,8 @@ export async function getStockMovements(limit = 50): Promise<StockMovement[]> {
  * Get products with variants for selection dropdown
  */
 export async function getProductsForAdjustment() {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const snapshot = await adminDb.collection('products').orderBy('name', 'asc').get();
 

@@ -1,3 +1,4 @@
+import { requireAdmin } from '@/actions/session-actions';
 import { NextRequest, NextResponse } from 'next/server';
 import { reprocessLoyverseSync } from '@/actions/reprocess-loyverse';
 
@@ -8,6 +9,8 @@ import { reprocessLoyverseSync } from '@/actions/reprocess-loyverse';
  * Body: { "orderId": "ORD-1234567890" }
  */
 export async function POST(req: NextRequest) {
+    try { await requireAdmin(); } catch (e: any) { return new Response(e.message, { status: 401 }); }
+
     try {
         const body = await req.json();
         const { orderId } = body;
@@ -36,6 +39,8 @@ export async function POST(req: NextRequest) {
 
 // GET endpoint for quick testing via browser
 export async function GET(req: NextRequest) {
+    try { await requireAdmin(); } catch (e: any) { return new Response(e.message, { status: 401 }); }
+
     const orderId = req.nextUrl.searchParams.get('orderId');
 
     if (!orderId) {

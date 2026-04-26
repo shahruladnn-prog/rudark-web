@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -33,6 +34,8 @@ export interface ArchivedMovement {
  * Get archive statistics
  */
 export async function getArchiveStats() {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const [activeSnapshot, archiveSnapshot] = await Promise.all([
             adminDb.collection('stock_movements').limit(1).get(),
@@ -57,6 +60,8 @@ export async function getArchiveStats() {
  * Get old movements that can be archived (older than 1 year)
  */
 export async function getArchivableMovements() {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const oneYearAgo = new Date();
         oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
@@ -81,7 +86,11 @@ export async function getArchivableMovements() {
  * Archive old stock movements (1 year or older)
  * Moves to stock_movements_archive collection, does NOT delete permanently
  */
-export async function archiveOldMovements(batchSize: number = 100): Promise<{ success: boolean; archived: number; error?: string }> {
+export async function archiveOldMovements(batchSize: number = 100): Promise<{
+
+ success: boolean; archived: number; error?: string }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const oneYearAgo = new Date();
         oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
@@ -134,6 +143,8 @@ export async function getArchivedMovements(options: {
     startAfter?: string;
     productId?: string;
 } = {}): Promise<ArchivedMovement[]> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const { limit = 100, productId } = options;
 
@@ -167,7 +178,11 @@ export async function exportArchivedMovements(options: {
     dateFrom?: string;
     dateTo?: string;
     productId?: string;
-} = {}): Promise<{ success: boolean; data?: ArchivedMovement[]; count?: number; error?: string }> {
+} = {}): Promise<{
+
+ success: boolean; data?: ArchivedMovement[]; count?: number; error?: string }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const { dateFrom, dateTo, productId } = options;
 
@@ -209,7 +224,11 @@ export async function exportArchivedMovements(options: {
 /**
  * Restore a specific archived movement back to active
  */
-export async function restoreArchivedMovement(movementId: string): Promise<{ success: boolean; error?: string }> {
+export async function restoreArchivedMovement(movementId: string): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const archiveRef = adminDb.collection('stock_movements_archive').doc(movementId);
         const doc = await archiveRef.get();

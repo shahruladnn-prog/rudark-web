@@ -2,30 +2,31 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Plus, Minus, Package, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, Package, RefreshCw } from 'lucide-react';
 import { recordStockMovement, getStockMovements, getProductsForAdjustment, StockMovement } from '@/actions/stock-movement-actions';
+import { useToast } from '@/components/ui/toast';
 
 interface ProductOption {
     id: string;
     name: string;
     sku: string;
     stock_quantity: number;
-    variants: {
-        sku: string;
-        options: Record<string, string>;
-        stock_quantity: number;
-        label: string;
-    }[];
+    variants: { sku: string; options: Record<string, string>; stock_quantity: number; label: string; }[];
 }
 
+const TYPE_STYLES = {
+    RECEIVE: { active: 'bg-emerald-50 border-emerald-400 text-emerald-700', icon: <Plus size={16} />, label: 'Receive' },
+    ADJUST:  { active: 'bg-blue-50 border-blue-400 text-blue-700',          icon: <Package size={16} />, label: 'Adjust' },
+    DAMAGE:  { active: 'bg-red-50 border-red-400 text-red-600',             icon: <Minus size={16} />, label: 'Damage' },
+};
+
 export default function StockAdjustPage() {
+    const { showToast } = useToast();
     const [products, setProducts] = useState<ProductOption[]>([]);
     const [movements, setMovements] = useState<StockMovement[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
-    const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
-    // Form state
     const [selectedProduct, setSelectedProduct] = useState('');
     const [selectedVariant, setSelectedVariant] = useState('');
     const [adjustType, setAdjustType] = useState<'RECEIVE' | 'ADJUST' | 'DAMAGE'>('RECEIVE');
@@ -36,321 +37,194 @@ export default function StockAdjustPage() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [productsData, movementsData] = await Promise.all([
-                getProductsForAdjustment(),
-                getStockMovements(20)
-            ]);
-            setProducts(productsData);
-            setMovements(movementsData);
-        } catch (error) {
-            console.error('Failed to load data:', error);
-        } finally {
-            setLoading(false);
-        }
+            const [prods, movs] = await Promise.all([getProductsForAdjustment(), getStockMovements(20)]);
+            setProducts(prods);
+            setMovements(movs);
+        } catch { showToast('error', 'Failed to load data'); }
+        finally { setLoading(false); }
     };
 
-    useEffect(() => {
-        loadData();
-    }, []);
+    useEffect(() => { loadData(); }, []);
 
     const selectedProductData = products.find(p => p.id === selectedProduct);
-    const hasVariants = selectedProductData && selectedProductData.variants.length > 0;
+    const hasVariants = !!selectedProductData?.variants.length;
 
-    const getCurrentStock = (): number => {
+    const getCurrentStock = () => {
         if (!selectedProductData) return 0;
         if (selectedVariant && hasVariants) {
-            const variant = selectedProductData.variants.find(v => v.sku === selectedVariant);
-            return variant?.stock_quantity || 0;
+            return selectedProductData.variants.find(v => v.sku === selectedVariant)?.stock_quantity || 0;
         }
         return selectedProductData.stock_quantity;
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setSubmitting(true);
-        setResult(null);
-
         const qty = parseInt(quantity);
-        if (isNaN(qty) || qty === 0) {
-            setResult({ success: false, message: 'Enter a valid quantity' });
-            setSubmitting(false);
-            return;
-        }
+        if (isNaN(qty) || qty === 0) { showToast('error', 'Enter a valid quantity'); return; }
 
-        // For damage/adjust negative, make it negative
-        const finalQty = adjustType === 'DAMAGE' ? -Math.abs(qty) :
-            adjustType === 'ADJUST' ? qty : Math.abs(qty);
-
+        setSubmitting(true);
+        const finalQty = adjustType === 'DAMAGE' ? -Math.abs(qty) : adjustType === 'ADJUST' ? qty : Math.abs(qty);
         const currentStock = getCurrentStock();
 
         const res = await recordStockMovement({
             product_id: selectedProduct,
             product_name: selectedProductData?.name || '',
             variant_sku: selectedVariant || undefined,
-            variant_label: hasVariants && selectedVariant ?
-                selectedProductData?.variants.find(v => v.sku === selectedVariant)?.label : undefined,
+            variant_label: hasVariants && selectedVariant
+                ? selectedProductData?.variants.find(v => v.sku === selectedVariant)?.label : undefined,
             type: adjustType,
             quantity: finalQty,
             previous_quantity: currentStock,
             new_quantity: currentStock + finalQty,
             reason: reason || undefined,
-            reference: reference || undefined
+            reference: reference || undefined,
         });
 
         if (res.success) {
-            setResult({ success: true, message: `Stock ${adjustType === 'RECEIVE' ? 'received' : 'adjusted'} successfully` });
-            // Reset form
-            setQuantity('');
-            setReason('');
-            setReference('');
-            // Reload data
+            showToast('success', `Stock ${adjustType === 'RECEIVE' ? 'received' : 'adjusted'} successfully`);
+            setQuantity(''); setReason(''); setReference('');
             loadData();
         } else {
-            setResult({ success: false, message: res.error || 'Failed to adjust stock' });
+            showToast('error', res.error || 'Failed to adjust stock');
         }
-
         setSubmitting(false);
     };
 
-    const formatDate = (dateStr: string | null) => {
-        if (!dateStr) return '-';
-        return new Date(dateStr).toLocaleString('en-MY', {
-            day: '2-digit',
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    };
+    const fmtDate = (d: string | null) => d ? new Date(d).toLocaleString('en-MY', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
 
     return (
-        <div className="max-w-5xl mx-auto pb-20">
-            {/* Header */}
-            <div className="flex items-center gap-4 border-b border-rudark-grey pb-6 mb-8">
-                <Link
-                    href="/admin/stock"
-                    className="p-2 text-gray-400 hover:text-rudark-volt transition-colors"
-                >
-                    <ArrowLeft size={24} />
+        <div className="max-w-5xl pb-20">
+            <div className="flex items-center gap-3 mb-6">
+                <Link href="/admin/stock" className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
+                    <ArrowLeft size={20} />
                 </Link>
                 <div>
-                    <h1 className="text-4xl font-condensed font-bold text-white uppercase mb-2">
-                        Stock <span className="text-rudark-volt">Adjustment</span>
-                    </h1>
-                    <p className="text-gray-400 font-mono text-sm">
-                        Receive goods, correct counts, or write off damage
-                    </p>
+                    <h1 className="text-xl font-bold text-gray-900">Stock Adjustment</h1>
+                    <p className="text-sm text-gray-400">Receive goods, correct counts, or write off damage</p>
                 </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-8">
-                {/* Adjustment Form */}
-                <div className="bg-rudark-carbon border border-rudark-grey rounded-sm p-6">
-                    <h2 className="text-lg font-bold text-white uppercase mb-6">New Adjustment</h2>
-
+            <div className="grid md:grid-cols-2 gap-6">
+                {/* Form */}
+                <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                    <h2 className="text-sm font-semibold text-gray-700 mb-4">New Adjustment</h2>
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        {/* Product Selection */}
+                        {/* Product */}
                         <div>
-                            <label className="text-xs text-gray-500 uppercase block mb-1">Product *</label>
-                            <select
-                                value={selectedProduct}
-                                onChange={(e) => {
-                                    setSelectedProduct(e.target.value);
-                                    setSelectedVariant('');
-                                }}
-                                className="w-full bg-rudark-matte border border-rudark-grey rounded-sm p-3 text-white focus:border-rudark-volt focus:outline-none"
-                                required
-                            >
-                                <option value="">Select product...</option>
+                            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Product *</label>
+                            <select value={selectedProduct}
+                                onChange={e => { setSelectedProduct(e.target.value); setSelectedVariant(''); }}
+                                className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+                                required>
+                                <option value="">Select product…</option>
                                 {products.map(p => (
-                                    <option key={p.id} value={p.id}>
-                                        {p.name} ({p.sku}) - Stock: {p.stock_quantity}
-                                    </option>
+                                    <option key={p.id} value={p.id}>{p.name} ({p.sku}) — Stock: {p.stock_quantity}</option>
                                 ))}
                             </select>
                         </div>
 
-                        {/* Variant Selection */}
+                        {/* Variant */}
                         {hasVariants && (
                             <div>
-                                <label className="text-xs text-gray-500 uppercase block mb-1">Variant *</label>
-                                <select
-                                    value={selectedVariant}
-                                    onChange={(e) => setSelectedVariant(e.target.value)}
-                                    className="w-full bg-rudark-matte border border-rudark-grey rounded-sm p-3 text-white focus:border-rudark-volt focus:outline-none"
-                                    required
-                                >
-                                    <option value="">Select variant...</option>
+                                <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Variant *</label>
+                                <select value={selectedVariant} onChange={e => setSelectedVariant(e.target.value)}
+                                    className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400" required>
+                                    <option value="">Select variant…</option>
                                     {selectedProductData?.variants.map(v => (
-                                        <option key={v.sku} value={v.sku}>
-                                            {v.label} ({v.sku}) - Stock: {v.stock_quantity}
-                                        </option>
+                                        <option key={v.sku} value={v.sku}>{v.label} ({v.sku}) — Stock: {v.stock_quantity}</option>
                                     ))}
                                 </select>
                             </div>
                         )}
 
-                        {/* Adjustment Type */}
+                        {/* Type */}
                         <div>
-                            <label className="text-xs text-gray-500 uppercase block mb-2">Type *</label>
+                            <label className="block text-xs font-medium text-gray-500 uppercase mb-2">Type *</label>
                             <div className="flex gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setAdjustType('RECEIVE')}
-                                    className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-sm border font-bold uppercase transition-colors ${adjustType === 'RECEIVE'
-                                            ? 'bg-green-900/30 border-green-500 text-green-400'
-                                            : 'border-rudark-grey text-gray-400 hover:border-gray-500'
-                                        }`}
-                                >
-                                    <Plus size={18} />
-                                    Receive
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setAdjustType('ADJUST')}
-                                    className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-sm border font-bold uppercase transition-colors ${adjustType === 'ADJUST'
-                                            ? 'bg-blue-900/30 border-blue-500 text-blue-400'
-                                            : 'border-rudark-grey text-gray-400 hover:border-gray-500'
-                                        }`}
-                                >
-                                    <Package size={18} />
-                                    Adjust
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setAdjustType('DAMAGE')}
-                                    className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-sm border font-bold uppercase transition-colors ${adjustType === 'DAMAGE'
-                                            ? 'bg-red-900/30 border-red-500 text-red-400'
-                                            : 'border-rudark-grey text-gray-400 hover:border-gray-500'
-                                        }`}
-                                >
-                                    <Minus size={18} />
-                                    Damage
-                                </button>
+                                {(['RECEIVE', 'ADJUST', 'DAMAGE'] as const).map(t => (
+                                    <button key={t} type="button" onClick={() => setAdjustType(t)}
+                                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded border text-xs font-semibold transition-colors ${adjustType === t ? TYPE_STYLES[t].active : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                                        {TYPE_STYLES[t].icon} {TYPE_STYLES[t].label}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
                         {/* Quantity */}
                         <div>
-                            <label className="text-xs text-gray-500 uppercase block mb-1">
+                            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">
                                 Quantity * {adjustType === 'ADJUST' && '(negative to subtract)'}
                             </label>
-                            <input
-                                type="number"
-                                value={quantity}
-                                onChange={(e) => setQuantity(e.target.value)}
-                                className="w-full bg-rudark-matte border border-rudark-grey rounded-sm p-3 text-white focus:border-rudark-volt focus:outline-none"
+                            <input type="number" value={quantity} onChange={e => setQuantity(e.target.value)}
                                 placeholder={adjustType === 'ADJUST' ? 'e.g. 10 or -5' : 'e.g. 10'}
-                                required
-                            />
+                                className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400" required />
                             {selectedProduct && (
-                                <div className="text-xs text-gray-500 mt-1">
-                                    Current stock: <span className="text-white">{getCurrentStock()}</span>
+                                <p className="text-xs text-gray-400 mt-1">
+                                    Current: <span className="text-gray-700 font-medium">{getCurrentStock()}</span>
                                     {quantity && !isNaN(parseInt(quantity)) && (
-                                        <span className="ml-2">
-                                            → New: <span className={
-                                                adjustType === 'DAMAGE'
-                                                    ? 'text-red-400'
-                                                    : parseInt(quantity) > 0 ? 'text-green-400' : 'text-red-400'
-                                            }>
-                                                {getCurrentStock() + (adjustType === 'DAMAGE' ? -Math.abs(parseInt(quantity)) : parseInt(quantity))}
-                                            </span>
-                                        </span>
+                                        <span className="ml-2">→ New: <span className={
+                                            (adjustType === 'DAMAGE' ? -Math.abs(parseInt(quantity)) : parseInt(quantity)) < 0
+                                                ? 'text-red-500 font-medium' : 'text-emerald-600 font-medium'
+                                        }>{getCurrentStock() + (adjustType === 'DAMAGE' ? -Math.abs(parseInt(quantity)) : parseInt(quantity))}</span></span>
                                     )}
-                                </div>
+                                </p>
                             )}
                         </div>
 
                         {/* Reason */}
                         <div>
-                            <label className="text-xs text-gray-500 uppercase block mb-1">Reason</label>
-                            <input
-                                type="text"
-                                value={reason}
-                                onChange={(e) => setReason(e.target.value)}
-                                className="w-full bg-rudark-matte border border-rudark-grey rounded-sm p-3 text-white focus:border-rudark-volt focus:outline-none"
+                            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Reason</label>
+                            <input type="text" value={reason} onChange={e => setReason(e.target.value)}
                                 placeholder="e.g. Stock count correction, Damaged in transit"
-                            />
+                                className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
                         </div>
 
                         {/* Reference */}
                         <div>
-                            <label className="text-xs text-gray-500 uppercase block mb-1">Reference / PO Number</label>
-                            <input
-                                type="text"
-                                value={reference}
-                                onChange={(e) => setReference(e.target.value)}
-                                className="w-full bg-rudark-matte border border-rudark-grey rounded-sm p-3 text-white focus:border-rudark-volt focus:outline-none"
+                            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Reference / PO Number</label>
+                            <input type="text" value={reference} onChange={e => setReference(e.target.value)}
                                 placeholder="e.g. PO-2024-001"
-                            />
+                                className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
                         </div>
 
-                        {/* Result */}
-                        {result && (
-                            <div className={`p-3 rounded-sm flex items-center gap-2 ${result.success ? 'bg-green-900/20 border border-green-900/50' : 'bg-red-900/20 border border-red-900/50'
-                                }`}>
-                                {result.success ? <CheckCircle size={18} className="text-green-400" /> : <AlertCircle size={18} className="text-red-400" />}
-                                <span className={result.success ? 'text-green-400' : 'text-red-400'}>{result.message}</span>
-                            </div>
-                        )}
-
-                        {/* Submit */}
-                        <button
-                            type="submit"
+                        <button type="submit"
                             disabled={submitting || !selectedProduct || (hasVariants && !selectedVariant)}
-                            className="w-full flex items-center justify-center gap-2 bg-rudark-volt text-black font-bold uppercase py-3 rounded-sm hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {submitting ? (
-                                <>
-                                    <RefreshCw size={18} className="animate-spin" />
-                                    Processing...
-                                </>
-                            ) : (
-                                <>
-                                    <Package size={18} />
-                                    Apply Adjustment
-                                </>
-                            )}
+                            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-medium py-2.5 rounded hover:bg-blue-700 disabled:opacity-50 text-sm transition-colors">
+                            {submitting ? <><RefreshCw size={15} className="animate-spin" /> Processing…</> : <><Package size={15} /> Apply Adjustment</>}
                         </button>
                     </form>
                 </div>
 
-                {/* Recent Movements */}
-                <div className="bg-rudark-carbon border border-rudark-grey rounded-sm p-6">
-                    <h2 className="text-lg font-bold text-white uppercase mb-6">Recent Movements</h2>
-
+                {/* Recent movements */}
+                <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                    <h2 className="text-sm font-semibold text-gray-700 mb-4">Recent Movements</h2>
                     {loading ? (
-                        <div className="text-gray-500 text-center py-8">Loading...</div>
+                        <div className="text-gray-400 text-sm text-center py-8">Loading…</div>
                     ) : movements.length === 0 ? (
-                        <div className="text-gray-500 text-center py-8">No movements recorded yet</div>
+                        <div className="text-gray-400 text-sm text-center py-8">No movements recorded yet</div>
                     ) : (
                         <div className="space-y-3 max-h-[500px] overflow-y-auto">
                             {movements.map(m => (
-                                <div key={m.id} className="border-b border-rudark-grey/30 pb-3">
+                                <div key={m.id} className="border-b border-gray-50 pb-3">
                                     <div className="flex justify-between items-start">
                                         <div>
-                                            <div className="text-white text-sm">{m.product_name}</div>
-                                            {m.variant_label && (
-                                                <div className="text-gray-500 text-xs">{m.variant_label}</div>
-                                            )}
+                                            <div className="text-sm text-gray-900">{m.product_name}</div>
+                                            {m.variant_label && <div className="text-xs text-gray-400">{m.variant_label}</div>}
                                         </div>
-                                        <div className={`font-mono font-bold ${m.quantity > 0 ? 'text-green-400' : 'text-red-400'
-                                            }`}>
+                                        <span className={`font-mono font-bold text-sm ${m.quantity > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                                             {m.quantity > 0 ? '+' : ''}{m.quantity}
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-4 mt-1 text-xs text-gray-500">
-                                        <span className={`px-1.5 py-0.5 rounded ${m.type === 'RECEIVE' ? 'bg-green-900/30 text-green-400' :
-                                                m.type === 'DAMAGE' ? 'bg-red-900/30 text-red-400' :
-                                                    'bg-gray-800 text-gray-400'
-                                            }`}>
-                                            {m.type}
                                         </span>
-                                        <span>{m.previous_quantity} → {m.new_quantity}</span>
-                                        <span>{formatDate(m.created_at as string)}</span>
                                     </div>
-                                    {m.reason && (
-                                        <div className="text-xs text-gray-500 mt-1 italic">{m.reason}</div>
-                                    )}
+                                    <div className="flex gap-3 mt-1 items-center text-xs">
+                                        <span className={`px-1.5 py-0.5 rounded font-medium ${
+                                            m.type === 'RECEIVE' ? 'bg-emerald-50 text-emerald-700' :
+                                            m.type === 'DAMAGE' ? 'bg-red-50 text-red-600' :
+                                            'bg-gray-100 text-gray-600'
+                                        }`}>{m.type}</span>
+                                        <span className="text-gray-400">{m.previous_quantity} → {m.new_quantity}</span>
+                                        <span className="text-gray-400">{fmtDate(m.created_at as string)}</span>
+                                    </div>
+                                    {m.reason && <div className="text-xs text-gray-400 mt-1 italic">{m.reason}</div>}
                                 </div>
                             ))}
                         </div>

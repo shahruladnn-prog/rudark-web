@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { revalidatePath, revalidateTag } from 'next/cache';
@@ -31,6 +32,8 @@ export const getCategories = unstable_cache(
 );
 
 export async function getCategory(id: string) {
+    await requireRole(['owner', 'staff']);
+
     try {
         const doc = await adminDb.collection('categories').doc(id).get();
         if (!doc.exists) return null;
@@ -47,6 +50,8 @@ export async function getCategory(id: string) {
 }
 
 export async function saveCategory(data: any) {
+    await requireRole(['owner', 'staff']);
+
     try {
         const { id, ...payload } = data;
 
@@ -76,6 +81,8 @@ export async function saveCategory(data: any) {
 }
 
 export async function deleteCategory(id: string) {
+    await requireRole(['owner', 'staff']);
+
     try {
         await adminDb.collection('categories').doc(id).delete();
         // @ts-ignore

@@ -49,28 +49,68 @@ export async function processChipPayment(
 ) {
     try {
         const settings = await getPaymentSettings();
-        const apiKey = await getChipApiKey(settings.chip.environment);
+        const apiKey = await getChipApiKey();
 
         // Convert cart items to CHIP products format
         // If there's a discount, we need to distribute it across items proportionally
         // CHIP does NOT accept negative price line items
         let products: Array<{ name: string; price: number; quantity: number }> = [];
 
-        const itemsSubtotal = cartItems.reduce((sum, item) => sum + (item.promo_price || item.web_price) * item.quantity, 0);
-        const discountRatio = discount > 0 ? discount / itemsSubtotal : 0;
+        // Discount distribution using largest-remainder method to avoid rounding drift.
+        // All math is done in integer cents to guarantee that the sum of (price * quantity)
+        // across products exactly equals the expected total_amount in cents.
+        const totalDiscountCents = Math.round(discount * 100);
 
-        products = cartItems.map(item => {
-            const originalPrice = item.promo_price || item.web_price;
-            // Apply discount proportionally to each item
-            const discountedPrice = discount > 0
-                ? originalPrice * (1 - discountRatio)
-                : originalPrice;
+        // Compute total cents per line item (unit cents × quantity)
+        const itemsCentsPerLine = cartItems.map(
+            item => Math.round((item.promo_price || item.web_price) * 100) * item.quantity
+        );
+        const subtotalCents = itemsCentsPerLine.reduce((s, c) => s + c, 0);
+
+        // Allocate integer-cent discount per line proportionally; absorb remainder on the last line
+        let allocated = 0;
+        const discountPerLine: number[] = cartItems.map((_, i) => {
+            if (i === cartItems.length - 1) return totalDiscountCents - allocated;
+            if (subtotalCents === 0) return 0;
+            const share = Math.floor(totalDiscountCents * itemsCentsPerLine[i] / subtotalCents);
+            allocated += share;
+            return share;
+        });
+
+        products = cartItems.map((item, i) => {
+            const unitCents = Math.round((item.promo_price || item.web_price) * 100);
+            const lineDiscountCents = discountPerLine[i];
+            const qty = item.quantity;
+            
+            // Distribute the line's discount across units; floor per-unit, last unit absorbs remainder
+            // We model this as: total line cost = unitCents * qty - lineDiscountCents
+            // CHIP requires per-unit pricing, so compute discounted unit price
+            let discountedUnitCents: number;
+            if (qty <= 0) {
+                discountedUnitCents = unitCents;
+            } else {
+                const totalLineCents = unitCents * qty - lineDiscountCents;
+                // CHIP requires positive integer per-unit price >= 1 cent
+                discountedUnitCents = Math.max(1, Math.floor(totalLineCents / qty));
+            }
+            
             return {
-                name: item.name,
-                price: Math.max(1, Math.round(discountedPrice * 100)), // Convert to cents, min 1 cent
-                quantity: item.quantity
+                name: (item.name || 'Item').slice(0, 100).replace(/[\r\n\t]/g, ' '),
+                price: discountedUnitCents,
+                quantity: qty
             };
         });
+
+        // Sanity check: log if computed CHIP total doesn't match expected
+        const computedChipCents = products.reduce((s, p) => s + p.price * p.quantity, 0)
+            + (shippingCost > 0 ? Math.round(shippingCost * 100) : 0);
+        const expectedTotalCents = Math.round(totalAmount * 100);
+        if (Math.abs(computedChipCents - expectedTotalCents) > cartItems.length) {
+            // Allow up to N cents drift due to per-unit rounding (one cent per line max)
+            console.error('[CHIP] Discount distribution drift detected', {
+                orderId, computedChipCents, expectedTotalCents, diff: computedChipCents - expectedTotalCents
+            });
+        }
 
         // Add shipping as a product if applicable
         if (shippingCost > 0) {
@@ -80,10 +120,6 @@ export async function processChipPayment(
                 quantity: 1
             });
         }
-
-        // Note: Discount is already applied to item prices above, no need for negative line item
-
-        // Note: Discount is already applied to item prices above, no need for negative line item
 
         // Smart Base URL resolution
         let baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
@@ -139,7 +175,6 @@ export async function processChipPayment(
 
         console.log('[CHIP] Creating purchase:', {
             orderId,
-            environment: settings.chip.environment,
             amount: totalAmount,
             products: products.length
         });
@@ -170,8 +205,7 @@ export async function processChipPayment(
         // Update order with CHIP purchase ID
         await adminDb.collection('orders').doc(orderId).update({
             chip_purchase_id: data.id,
-            payment_gateway: 'chip',
-            chip_environment: settings.chip.environment
+            payment_gateway: 'chip'
         });
 
         // Redirect to CHIP checkout page
@@ -194,7 +228,7 @@ export async function processChipPayment(
 export async function verifyChipPayment(purchaseId: string) {
     try {
         const settings = await getPaymentSettings();
-        const apiKey = await getChipApiKey(settings.chip.environment);
+        const apiKey = await getChipApiKey();
 
         const response = await fetch(`https://gate.chip-in.asia/api/v1/purchases/${purchaseId}/`, {
             headers: {

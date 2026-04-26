@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 
@@ -7,6 +8,8 @@ import { adminDb } from '@/lib/firebase-admin';
  * This helps keep the database clean of abandoned checkout sessions.
  */
 export async function cleanupStaleOrders(olderThanDays: number = 7) {
+    await requireRole(['owner', 'staff']);
+
     try {
         // Calculate cutoff date
         const thresholdDate = new Date();

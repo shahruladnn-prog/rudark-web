@@ -40,7 +40,12 @@ async function getProducts() {
     const productsRef = adminDb.collection('products');
     if (!productsRef) return [];
 
-    const snapshot = await productsRef.where('stock_status', '!=', 'ARCHIVED').limit(8).get();
+    const snapshot = await productsRef
+      .where('is_public', '==', true)
+      .where('stock_status', '!=', 'ARCHIVED')
+      .orderBy('created_at', 'desc')
+      .limit(8)
+      .get();
 
     if (snapshot.empty) return [];
 

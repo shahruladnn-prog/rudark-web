@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 
@@ -106,6 +107,8 @@ const SEED_DATA = {
 };
 
 export async function seedCategories() {
+    await requireRole(['owner', 'staff']);
+
     try {
         console.log("Starting Category Seed...");
         const batch = adminDb.batch();

@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { loyverse } from '@/lib/loyverse';
 
@@ -7,6 +8,8 @@ import { loyverse } from '@/lib/loyverse';
  * Called when user clicks "Add to Cart" or "Calculate Shipping"
  */
 export async function checkLoyverseStock(sku: string, requestedQuantity: number) {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         // 1. Get items to find variant_id by SKU
         const itemsData = await loyverse.getItems();
@@ -68,6 +71,8 @@ export async function checkLoyverseStock(sku: string, requestedQuantity: number)
  * Batch check stock for multiple items (for cart/checkout)
  */
 export async function checkMultipleStock(items: Array<{ sku: string; quantity: number; name: string }>) {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         // 1. Build SKU → variant_id map
         const itemsData = await loyverse.getItems();

@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { Instagram, Facebook, Youtube } from 'lucide-react';
+import { Instagram, Facebook, Youtube, MessageCircle } from 'lucide-react';
+
+const WA_HREF = 'https://wa.me/60135518857?text=Hi%2C%20I%20am%20interested%20in%20your%20products';
 
 export default function FloatingSocial() {
     const [visible, setVisible] = useState(true);
@@ -58,6 +60,17 @@ export default function FloatingSocial() {
         <>
             {/* Desktop: Vertical sidebar on right */}
             <div className="hidden lg:flex fixed right-6 top-1/2 -translate-y-1/2 flex-col gap-3 z-50">
+                {/* WhatsApp CTA — prominent green */}
+                <Link
+                    href={WA_HREF}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-12 h-12 bg-[#25D366] rounded-sm flex items-center justify-center text-white hover:scale-110 hover:brightness-110 transition-all duration-300 shadow-lg shadow-[#25D366]/30"
+                    aria-label="WhatsApp"
+                >
+                    <MessageCircle className="w-5 h-5" />
+                </Link>
+                <div className="w-full h-px bg-rudark-grey/50" />
                 {socialLinks.map((social) => (
                     <Link
                         key={social.name}
@@ -78,6 +91,16 @@ export default function FloatingSocial() {
                     }`}
             >
                 <div className="bg-rudark-carbon border-2 border-rudark-grey rounded-sm shadow-2xl flex gap-3 px-4 py-3">
+                    {/* WhatsApp first on mobile */}
+                    <Link
+                        href={WA_HREF}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-11 h-11 flex items-center justify-center bg-[#25D366] rounded-sm text-white active:scale-95 transition-all duration-200"
+                        aria-label="WhatsApp"
+                    >
+                        <MessageCircle className="w-5 h-5" />
+                    </Link>
                     {socialLinks.map((social) => (
                         <Link
                             key={social.name}

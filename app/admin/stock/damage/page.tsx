@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, AlertTriangle, Package, Camera, Check } from 'lucide-react';
 import { getProducts } from '@/actions/product-actions';
 import { recordStockMovement } from '@/actions/stock-movement-actions';
+import { useToast } from '@/components/ui/toast';
 
 interface ProductOption {
     id: string;
@@ -30,6 +31,7 @@ const DAMAGE_REASONS = [
 ];
 
 export default function DamageRecordingPage() {
+    const { showToast } = useToast();
     const [products, setProducts] = useState<ProductOption[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -79,12 +81,12 @@ export default function DamageRecordingPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedProduct || !reason || quantity < 1) {
-            alert('Please fill in all required fields');
+            showToast('warning', 'Please fill in all required fields');
             return;
         }
 
         if (quantity > currentStock) {
-            alert(`Cannot record damage of ${quantity} items. Current stock is only ${currentStock}.`);
+            showToast('warning', `Cannot record damage of ${quantity} items. Current stock is only ${currentStock}.`);
             return;
         }
 
@@ -118,177 +120,86 @@ export default function DamageRecordingPage() {
                 setNotes('');
                 setTimeout(() => setSuccess(false), 3000);
             } else {
-                alert('Failed to record damage: ' + result.error);
+                showToast('error', 'Failed to record damage: ' + result.error);
             }
         } catch (error) {
-            alert('Error recording damage: ' + error);
+            showToast('error', 'Error recording damage: ' + error);
         }
         setSubmitting(false);
     };
 
     return (
-        <div className="max-w-3xl mx-auto pb-20">
-            {/* Header */}
-            <div className="border-b border-rudark-grey pb-6 mb-8">
-                <Link href="/admin/stock" className="flex items-center gap-2 text-gray-400 hover:text-white mb-4 text-sm">
-                    <ArrowLeft size={16} />
-                    Back to Stock
-                </Link>
-                <h1 className="text-3xl font-condensed font-bold text-white uppercase">
-                    Record <span className="text-red-400">Damage / Loss</span>
-                </h1>
-                <p className="text-gray-400 text-sm mt-1">
-                    Document damaged, lost, or defective inventory items
-                </p>
+        <div className="max-w-3xl pb-20">
+            <div className="flex items-center gap-3 mb-6">
+                <Link href="/admin/stock" className="p-2 text-gray-400 hover:text-gray-600"><ArrowLeft size={20} /></Link>
+                <div>
+                    <h1 className="text-xl font-bold text-gray-900">Record Damage / Loss</h1>
+                    <p className="text-sm text-gray-400">Document damaged, lost, or defective inventory items</p>
+                </div>
             </div>
 
-            {/* Success Message */}
-            {success && (
-                <div className="bg-green-900/30 border border-green-500/50 rounded-sm p-4 mb-6 flex items-center gap-3">
-                    <Check size={20} className="text-green-400" />
-                    <span className="text-green-400">Damage recorded successfully. Stock has been updated.</span>
-                </div>
-            )}
-
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Product Selection */}
-                <div className="bg-rudark-carbon p-6 border border-rudark-grey rounded-sm">
-                    <h2 className="text-lg font-bold text-white uppercase mb-4 flex items-center gap-2">
-                        <Package size={20} />
-                        Select Product
-                    </h2>
-
-                    {/* Search */}
-                    <input
-                        type="text"
-                        placeholder="Search products..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-rudark-matte border border-rudark-grey text-white p-3 rounded-sm mb-4"
-                    />
-
-                    {/* Product Dropdown */}
-                    <select
-                        value={selectedProduct}
-                        onChange={(e) => {
-                            setSelectedProduct(e.target.value);
-                            setSelectedVariant('');
-                        }}
-                        className="w-full bg-rudark-matte border border-rudark-grey text-white p-3 rounded-sm"
-                        required
-                    >
-                        <option value="">-- Select Product --</option>
-                        {filteredProducts.map(product => (
-                            <option key={product.id} value={product.id}>
-                                {product.name} ({product.sku}) - Stock: {product.stock_quantity}
-                            </option>
-                        ))}
+                <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                    <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2"><Package size={16} /> Select Product</h2>
+                    <input type="text" placeholder="Filter products…" value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="w-full border border-gray-200 rounded px-3 py-2 text-sm mb-3 focus:outline-none focus:border-blue-400" />
+                    <select value={selectedProduct} onChange={e => { setSelectedProduct(e.target.value); setSelectedVariant(''); }}
+                        className="w-full border border-gray-200 rounded px-3 py-2 text-sm mb-3 focus:outline-none focus:border-blue-400" required>
+                        <option value="">— Select Product —</option>
+                        {filteredProducts.map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku}) — Stock: {p.stock_quantity}</option>)}
                     </select>
-
-                    {/* Variant Selection */}
                     {selectedProductData?.variants && selectedProductData.variants.length > 0 && (
-                        <div className="mt-4">
-                            <label className="block text-gray-400 text-sm mb-2">Select Variant (if applicable)</label>
-                            <select
-                                value={selectedVariant}
-                                onChange={(e) => setSelectedVariant(e.target.value)}
-                                className="w-full bg-rudark-matte border border-rudark-grey text-white p-3 rounded-sm"
-                            >
-                                <option value="">-- No specific variant (parent level) --</option>
-                                {selectedProductData.variants.map(variant => {
-                                    const label = Object.values(variant.options || {}).join(' / ');
-                                    return (
-                                        <option key={variant.sku} value={variant.sku}>
-                                            {label || variant.sku} - Stock: {variant.stock_quantity ?? 0}
-                                        </option>
-                                    );
-                                })}
-                            </select>
-                        </div>
+                        <select value={selectedVariant} onChange={e => setSelectedVariant(e.target.value)}
+                            className="w-full border border-gray-200 rounded px-3 py-2 text-sm mb-3 focus:outline-none focus:border-blue-400">
+                            <option value="">— No specific variant —</option>
+                            {selectedProductData.variants.map(v => (
+                                <option key={v.sku} value={v.sku}>{Object.values(v.options || {}).join(' / ') || v.sku} — Stock: {v.stock_quantity ?? 0}</option>
+                            ))}
+                        </select>
                     )}
-
-                    {/* Current Stock Display */}
                     {selectedProduct && (
-                        <div className="mt-4 p-3 bg-rudark-matte rounded-sm">
-                            <span className="text-gray-400">Current Stock: </span>
-                            <span className="text-white font-bold">{currentStock}</span>
+                        <div className="p-3 bg-gray-50 rounded border border-gray-100 text-sm">
+                            Current Stock: <span className="font-bold text-gray-900">{currentStock}</span>
                         </div>
                     )}
                 </div>
 
                 {/* Damage Details */}
-                <div className="bg-rudark-carbon p-6 border border-rudark-grey rounded-sm">
-                    <h2 className="text-lg font-bold text-white uppercase mb-4 flex items-center gap-2">
-                        <AlertTriangle size={20} className="text-red-400" />
-                        Damage Details
-                    </h2>
-
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                        {/* Quantity */}
+                <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                    <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2"><AlertTriangle size={16} className="text-red-500" /> Damage Details</h2>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
                         <div>
-                            <label className="block text-gray-400 text-sm mb-2">Quantity Damaged *</label>
-                            <input
-                                type="number"
-                                min={1}
-                                max={currentStock}
-                                value={quantity}
-                                onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-                                className="w-full bg-rudark-matte border border-rudark-grey text-white p-3 rounded-sm"
-                                required
-                            />
+                            <label className="text-xs text-gray-500 mb-1 block">Quantity Damaged *</label>
+                            <input type="number" min={1} max={currentStock} value={quantity} onChange={e => setQuantity(parseInt(e.target.value) || 1)}
+                                className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400" required />
                         </div>
-
-                        {/* Reason */}
                         <div>
-                            <label className="block text-gray-400 text-sm mb-2">Reason *</label>
-                            <select
-                                value={reason}
-                                onChange={(e) => setReason(e.target.value)}
-                                className="w-full bg-rudark-matte border border-rudark-grey text-white p-3 rounded-sm"
-                                required
-                            >
-                                <option value="">-- Select Reason --</option>
-                                {DAMAGE_REASONS.map(r => (
-                                    <option key={r.value} value={r.value}>{r.label}</option>
-                                ))}
+                            <label className="text-xs text-gray-500 mb-1 block">Reason *</label>
+                            <select value={reason} onChange={e => setReason(e.target.value)}
+                                className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400" required>
+                                <option value="">— Select Reason —</option>
+                                {DAMAGE_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                             </select>
                         </div>
                     </div>
-
-                    {/* Notes */}
                     <div>
-                        <label className="block text-gray-400 text-sm mb-2">Notes (optional)</label>
-                        <textarea
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                            placeholder="Additional details about the damage..."
-                            className="w-full bg-rudark-matte border border-rudark-grey text-white p-3 rounded-sm"
-                            rows={3}
-                        />
+                        <label className="text-xs text-gray-500 mb-1 block">Notes (optional)</label>
+                        <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Additional details about the damage…" rows={3}
+                            className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none" />
                     </div>
-
-                    {/* Photo Upload Placeholder */}
-                    <div className="mt-4 p-4 border-2 border-dashed border-rudark-grey rounded-sm text-center">
-                        <Camera size={32} className="mx-auto text-gray-500 mb-2" />
-                        <p className="text-gray-500 text-sm">Photo upload coming soon</p>
+                    <div className="mt-3 p-3 border-2 border-dashed border-gray-200 rounded text-center">
+                        <Camera size={24} className="mx-auto text-gray-300 mb-1" />
+                        <p className="text-gray-400 text-xs">Photo upload coming soon</p>
                     </div>
                 </div>
 
-                {/* Submit */}
-                <div className="flex justify-end gap-4">
-                    <Link
-                        href="/admin/stock"
-                        className="px-6 py-3 border border-rudark-grey text-gray-300 hover:text-white rounded-sm"
-                    >
-                        Cancel
-                    </Link>
-                    <button
-                        type="submit"
-                        disabled={submitting || !selectedProduct || !reason}
-                        className="px-6 py-3 bg-red-600 text-white font-bold uppercase rounded-sm hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {submitting ? 'Recording...' : 'Record Damage'}
+                <div className="flex justify-end gap-3">
+                    <Link href="/admin/stock" className="px-4 py-2 border border-gray-200 text-gray-600 rounded text-sm hover:border-gray-300">Cancel</Link>
+                    <button type="submit" disabled={submitting || !selectedProduct || !reason}
+                        className="px-6 py-2 bg-red-600 text-white font-medium rounded hover:bg-red-700 disabled:opacity-50 text-sm transition-colors">
+                        {submitting ? 'Recording…' : 'Record Damage'}
                     </button>
                 </div>
             </form>

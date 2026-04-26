@@ -1,6 +1,8 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { releaseReservedStock } from './stock-validation';
 import { recordStockMovement } from './stock-movement-actions';
 import { revalidatePath } from 'next/cache';
@@ -28,7 +30,11 @@ export async function processRefund(
     items: RefundItem[],
     reason: string,
     refundType: 'FULL' | 'PARTIAL' = 'FULL'
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner', 'staff']);
+
     try {
         // 1. Get the order
         const orderRef = adminDb.collection('orders').doc(orderId);
@@ -66,33 +72,20 @@ export async function processRefund(
                     images: [],
                     category_slug: '',
                     stock_status: 'IN_STOCK',
+                    is_public: true,
+                    is_home_public: false,
                     is_featured: false,
                     tags: [],
                     created_at: null,
                     updated_at: null
                 };
                 stockRestorationItems.push(cartItem);
-
-                // Record stock movement
-                // Note: We pass 0 for previous/new quantity as actual values are calculated in recordStockMovement
-                await recordStockMovement({
-                    product_id: item.product_id,
-                    product_name: item.product_name,
-                    variant_sku: item.variant_sku,
-                    type: 'RETURN',
-                    quantity: item.quantity, // Positive = adding back
-                    previous_quantity: 0, // Will be updated by the function
-                    new_quantity: 0, // Will be updated by the function
-                    reason: `Refund: ${reason}`,
-                    reference: orderId,
-                    created_by: 'admin'
-                });
             }
         }
 
         // 4. Restore stock (use similar logic to releaseReservedStock but add to stock_quantity)
         if (stockRestorationItems.length > 0) {
-            await restoreStockForRefund(stockRestorationItems);
+            await restoreStockForRefund(stockRestorationItems, orderId, reason);
             console.log(`[Refund] Restored stock for ${stockRestorationItems.length} items`);
         }
 
@@ -137,7 +130,7 @@ export async function processRefund(
  * Restore stock for refunded items
  * Similar to releaseReservedStock but adds to stock_quantity
  */
-async function restoreStockForRefund(items: CartItem[]) {
+async function restoreStockForRefund(items: CartItem[], orderId: string, reason: string) {
     await adminDb.runTransaction(async (transaction) => {
         // Read all products first
         const productDocs = await Promise.all(
@@ -158,6 +151,9 @@ async function restoreStockForRefund(items: CartItem[]) {
             const product = productDoc.data();
             if (!product) continue;
 
+            let previousQuantity = 0;
+            let newQuantity = 0;
+
             // Check if this is a variant purchase
             const hasVariantOptions = item.selected_options && Object.keys(item.selected_options).length > 0;
             const hasVariants = product.variants && product.variants.length > 0;
@@ -172,10 +168,13 @@ async function restoreStockForRefund(items: CartItem[]) {
                 });
 
                 if (variantIndex !== -1) {
+                    previousQuantity = product.variants[variantIndex].stock_quantity || 0;
+                    newQuantity = previousQuantity + item.quantity;
+
                     const updatedVariants = [...product.variants];
                     updatedVariants[variantIndex] = {
                         ...updatedVariants[variantIndex],
-                        stock_quantity: (updatedVariants[variantIndex].stock_quantity || 0) + item.quantity
+                        stock_quantity: newQuantity
                     };
 
                     // Update parent total (sum of all variants)
@@ -191,11 +190,30 @@ async function restoreStockForRefund(items: CartItem[]) {
                 }
             } else {
                 // Parent-level restoration
+                previousQuantity = product.stock_quantity || 0;
+                newQuantity = previousQuantity + item.quantity;
+
                 transaction.update(productDoc.ref, {
-                    stock_quantity: (product.stock_quantity || 0) + item.quantity,
+                    stock_quantity: newQuantity,
                     updated_at: new Date()
                 });
             }
+
+            // Record the movement inside the transaction
+            const movementRef = adminDb.collection('stock_movements').doc();
+            transaction.set(movementRef, {
+                product_id: item.id,
+                product_name: item.name,
+                variant_sku: item.sku,
+                type: 'RETURN',
+                quantity: item.quantity,
+                previous_quantity: previousQuantity,
+                new_quantity: newQuantity,
+                reason: `Refund: ${reason}`,
+                reference: orderId,
+                created_by: 'admin',
+                created_at: FieldValue.serverTimestamp()
+            });
         }
     });
 }
@@ -204,6 +222,8 @@ async function restoreStockForRefund(items: CartItem[]) {
  * Get refundable items for an order
  */
 export async function getRefundableItems(orderId: string) {
+    await requireRole(['owner', 'staff']);
+
     try {
         const orderDoc = await adminDb.collection('orders').doc(orderId).get();
 

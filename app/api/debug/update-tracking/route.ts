@@ -1,3 +1,4 @@
+import { requireAdmin } from '@/actions/session-actions';
 import { NextRequest, NextResponse } from 'next/server';
 import { updateTrackingManually } from '@/actions/parcelasia-sync';
 
@@ -6,6 +7,8 @@ import { updateTrackingManually } from '@/actions/parcelasia-sync';
  * GET /api/debug/update-tracking?orderId=ORD-xxx&trackingNo=xxx
  */
 export async function GET(req: NextRequest) {
+    try { await requireAdmin(); } catch (e: any) { return new Response(e.message, { status: 401 }); }
+
     const { searchParams } = new URL(req.url);
     const orderId = searchParams.get('orderId');
     const trackingNo = searchParams.get('trackingNo');

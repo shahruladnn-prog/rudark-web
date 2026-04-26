@@ -1,3 +1,4 @@
+import { requireAdmin } from '@/actions/session-actions';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 
@@ -6,6 +7,8 @@ import { adminDb } from '@/lib/firebase-admin';
  * GET /api/debug/order?orderId=ORD-xxx
  */
 export async function GET(req: NextRequest) {
+    try { await requireAdmin(); } catch (e: any) { return new Response(e.message, { status: 401 }); }
+
     const { searchParams } = new URL(req.url);
     const orderId = searchParams.get('orderId');
 

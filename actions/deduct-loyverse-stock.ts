@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { loyverse } from '@/lib/loyverse';
 
@@ -11,6 +12,8 @@ export async function deductLoyverseStock(orderItems: Array<{
     quantity: number;
     name: string;
 }>) {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         console.log('[Stock Deduction] Starting for', orderItems.length, 'items');
 

@@ -7,8 +7,12 @@ import { adminDb } from '@/lib/firebase-admin';
  * This uses Admin SDK so it bypasses Firestore security rules
  * Only returns safe fields that customers should see
  */
-export async function getPublicOrderStatus(orderId: string) {
+export async function getPublicOrderStatus(orderId: string, customerEmail: string) {
     try {
+        if (!customerEmail) {
+            return { success: false, error: 'Email required' };
+        }
+
         if (!orderId || typeof orderId !== 'string') {
             return { success: false, error: 'Invalid order ID' };
         }
@@ -29,6 +33,14 @@ export async function getPublicOrderStatus(orderId: string) {
         const order = orderDoc.data();
         if (!order) {
             return { success: false, error: 'Order data missing' };
+        }
+
+        // Verify email matches
+        const storedEmail = (order.customer?.email || '').toLowerCase().trim();
+        const providedEmail = (customerEmail || '').toLowerCase().trim();
+
+        if (storedEmail !== providedEmail) {
+            return { success: false, error: 'Order not found' };
         }
 
         // Return only safe fields for public display

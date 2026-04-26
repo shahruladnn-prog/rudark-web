@@ -3,8 +3,10 @@
 import { adminDb } from '@/lib/firebase-admin';
 import { verifyChipPayment } from './payment-processors/chip';
 import { processSuccessfulOrder } from './order-utils';
+import { requireRole } from './session-actions';
 
 export async function verifyOrderPayment(orderId: string) {
+    await requireRole(['owner', 'staff']);
     try {
         console.log(`[VerifyOrder] Checking status for order: ${orderId}`);
         const orderRef = adminDb.collection('orders').doc(orderId);

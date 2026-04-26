@@ -1,8 +1,26 @@
-'use client';
-
+import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, Award, Users, Calendar, Target } from 'lucide-react';
+
+export const metadata: Metadata = {
+    title: "About | Rud'Ark PRO SHOP",
+    description: "The story of Rud'Ark — from humble river beginnings in 2015 to Malaysia's official boat sponsor for the IRF World Rafting Championship 2025.",
+    openGraph: {
+        title: "About | Rud'Ark PRO SHOP",
+        description: "Built for the bold. The story of Rud'Ark — premium technical gear born from a decade of real adventure.",
+        url: 'https://rudark-web.vercel.app/about',
+        siteName: "Rud'Ark",
+        images: [{ url: 'https://rudark-web.vercel.app/logo.png', width: 800, height: 800, alt: "Rud'Ark Logo" }],
+        type: 'website',
+    },
+    twitter: {
+        card: 'summary_large_image',
+        title: "About | Rud'Ark PRO SHOP",
+        description: "Built for the bold. The story of Rud'Ark.",
+        images: ['https://rudark-web.vercel.app/logo.png'],
+    },
+};
 
 export default function AboutPage() {
     return (
@@ -14,6 +32,7 @@ export default function AboutPage() {
                     src="/561850166_122153438654703048_8869634204382287531_n.jpg"
                     alt="Rud'Ark - Build for the Bold"
                     fill
+                    sizes="100vw"
                     className="object-cover"
                     priority
                 />

@@ -51,7 +51,9 @@ export async function getProductsBySlug(slugs: string[]) {
 
         // 2. Prepare Products Promise
         const productsPromise = (async () => {
-            let query: FirebaseFirestore.Query = adminDb.collection('products');
+            let query: FirebaseFirestore.Query = adminDb.collection('products')
+                .where('is_public', '==', true);
+            
             query = query.where('category_slug', '==', categorySlug);
 
             if (subcategorySlug) {

@@ -1,5 +1,7 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
+import * as nodemailer from "nodemailer";
+import * as firestore from "@google-cloud/firestore";
 
 admin.initializeApp();
 
@@ -62,205 +64,530 @@ export const checkStock = functions.https.onCall(async (data: { sku: string; var
     }
 });
 
-export const bizappWebhook = functions.https.onRequest(async (req, res) => {
-    // 1. Basic Validation
-    if (req.method !== 'POST') {
-        res.status(405).send('Method Not Allowed');
-        return;
-    }
+export const dailySummaryEmail = functions.pubsub
+    .schedule("0 0 * * *") // Runs at 00:00 UTC = 8 AM MYT
+    .onRun(async (context) => {
+        try {
+            // 1. Calculate Yesterday range
+            const now = new Date();
+            // Start of yesterday (UTC)
+            const yesterdayStart = new Date(now);
+            yesterdayStart.setUTCDate(yesterdayStart.getUTCDate() - 1);
+            yesterdayStart.setUTCHours(0, 0, 0, 0);
+            
+            // End of yesterday (UTC)
+            const yesterdayEnd = new Date(now);
+            yesterdayEnd.setUTCHours(0, 0, 0, 0);
 
-    try {
-        let billStatus = '';
-        let externalReference = '';
-        let billCode = '';
+            console.log(`Summarizing orders from ${yesterdayStart.toISOString()} to ${yesterdayEnd.toISOString()}`);
 
-        // BizApp V3 sends multipart/form-data usually, or sometimes JSON if configured?
-        // Express (and Firebase Functions) parses JSON automatically if Content-Type is application/json.
-        // For multipart, we might need 'busboy' or similar, BUT standard firebase functions usually parse body if simple.
-        // If it sends x-www-form-urlencoded, req.body is an object.
-        // Let's assume req.body is populated.
+            // 2. Query Orders
+            const ordersSnap = await admin.firestore()
+                .collection("orders")
+                .where("created_at", ">=", yesterdayStart)
+                .where("created_at", "<", yesterdayEnd)
+                .get();
 
-        const body = req.body;
-        console.log("BizApp Webhook Body:", JSON.stringify(body));
+            let totalRevenue = 0;
+            let orderCount = 0;
+            const productStats: { [name: string]: { revenue: number, qty: number } } = {};
 
-        billStatus = body.billstatus || body.transactionStatus; // Adjust based on actual payload
-        externalReference = body.billExternalReferenceNo || body.refno || body.order_id;
-        billCode = body.billcode;
+            ordersSnap.forEach(doc => {
+                const order = doc.data();
+                if (order.status === "CANCELLED") return;
 
-        // Verify Status (1 = Success)
-        if (billStatus !== '1') {
-            console.log(`Payment not successful. Status: ${billStatus}`);
-            res.status(200).send('Received, but not success status');
-            return;
-        }
+                orderCount++;
+                totalRevenue += (order.total_amount || 0);
 
-        if (!externalReference) {
-            console.error("Missing external reference");
-            res.status(400).send("Missing Reference");
-            return;
-        }
+                if (order.items && Array.isArray(order.items)) {
+                    order.items.forEach((item: any) => {
+                        const name = item.name || "Unknown Product";
+                        const revenue = (item.price || 0) * (item.quantity || 0);
+                        if (!productStats[name]) {
+                            productStats[name] = { revenue: 0, qty: 0 };
+                        }
+                        productStats[name].revenue += revenue;
+                        productStats[name].qty += (item.quantity || 0);
+                    });
+                }
+            });
 
-        const orderId = externalReference;
-        const orderRef = admin.firestore().collection('orders').doc(orderId);
-        const orderSnap = await orderRef.get();
+            // 3. Get Top 3 Products
+            const topProducts = Object.entries(productStats)
+                .map(([name, stats]) => ({ name, ...stats }))
+                .sort((a, b) => b.revenue - a.revenue)
+                .slice(0, 3);
 
-        if (!orderSnap.exists) {
-            console.error(`Order ${orderId} not found`);
-            res.status(404).send("Order not found");
-            return;
-        }
+            // 4. Get Store Email
+            const settingsSnap = await admin.firestore().collection("settings").doc("general").get();
+            const settings = settingsSnap.data();
+            const recipientEmail = settings?.supportEmail || "admin@rudark.com";
 
-        const orderData = orderSnap.data();
-        if (orderData?.status === 'PAID') {
-            res.status(200).send('Already Paid');
-            return;
-        }
+            // 5. Send Email
+            const GMAIL_USER = process.env.GMAIL_USER || functions.config().gmail?.user;
+            const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD || functions.config().gmail?.pass;
 
-        // 2. Update Order Status
-        await orderRef.update({
-            status: 'PAID',
-            paid_at: admin.firestore.FieldValue.serverTimestamp(),
-            bizapp_data: {
-                billCode: billCode,
-                status: billStatus,
-                paid_at: new Date().toISOString()
+            if (!GMAIL_USER || !GMAIL_PASS) {
+                console.warn("Gmail credentials not configured. Skipping email.");
+                return null;
             }
+
+            const transporter = nodemailer.createTransport({
+                service: "gmail",
+                auth: {
+                    user: GMAIL_USER,
+                    pass: GMAIL_PASS,
+                },
+            });
+
+            const dateStr = yesterdayStart.toLocaleDateString("en-MY", { 
+                day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kuala_Lumpur" 
+            });
+
+            const html = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px;">
+                    <h2 style="color: #333; border-bottom: 2px solid #333; padding-bottom: 10px;">Rud'Ark Daily Summary</h2>
+                    <p style="font-size: 16px;">Summary for <strong>${dateStr}</strong></p>
+                    
+                    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                        <tr style="background: #f9f9f9;">
+                            <td style="padding: 10px; border: 1px solid #ddd;"><strong>Total Orders</strong></td>
+                            <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${orderCount}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; border: 1px solid #ddd;"><strong>Total Revenue</strong></td>
+                            <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">RM ${totalRevenue.toFixed(2)}</td>
+                        </tr>
+                    </table>
+
+                    <h3>Top 3 Products by Revenue</h3>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: #333; color: #fff;">
+                                <th style="padding: 10px; text-align: left;">Product</th>
+                                <th style="padding: 10px; text-align: center;">Qty</th>
+                                <th style="padding: 10px; text-align: right;">Revenue</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${topProducts.map(p => `
+                                <tr>
+                                    <td style="padding: 10px; border-bottom: 1px solid #eee;">${p.name}</td>
+                                    <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">${p.qty}</td>
+                                    <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">RM ${p.revenue.toFixed(2)}</td>
+                                </tr>
+                            `).join("")}
+                            ${topProducts.length === 0 ? '<tr><td colspan="3" style="padding: 10px; text-align: center; color: #999;">No sales today</td></tr>' : ""}
+                        </tbody>
+                    </table>
+
+                    <p style="margin-top: 30px; font-size: 12px; color: #777;">
+                        This is an automated report generated by Rud'Ark Command Center.
+                    </p>
+                </div>
+            `;
+
+            await transporter.sendMail({
+                from: `"Rud'Ark Summary" <${GMAIL_USER}>`,
+                to: recipientEmail,
+                subject: `Rud'Ark Daily Summary — ${dateStr}`,
+                html: html,
+            });
+
+            console.log(`Summary email sent to ${recipientEmail} for ${dateStr}`);
+            return null;
+
+        } catch (error) {
+            console.error("Daily Summary Email Error:", error);
+            return null;
+        }
+    });
+
+/**
+ * Scheduled Firestore Export
+ * Runs daily at 2am Malaysia time
+ */
+export const scheduledFirestoreExport = functions.pubsub
+    .schedule("0 2 * * *")
+    .timeZone("Asia/Kuala_Lumpur")
+    .onRun(async (context) => {
+        const client = new firestore.v1.FirestoreAdminClient();
+
+        const projectId = process.env.GCP_PROJECT || process.env.GCLOUD_PROJECT || admin.instanceId().app.options.projectId!;
+        const databaseName = client.databasePath(projectId, "(default)");
+        
+        const date = new Date().toISOString().split("T")[0];
+        const outputUriPrefix = `gs://${projectId}-backups/firestore/${date}`;
+
+        try {
+            await client.exportDocuments({
+                name: databaseName,
+                outputUriPrefix: outputUriPrefix,
+                collectionIds: [], // Export all collections
+            });
+            console.log(`Firestore export triggered successfully to ${outputUriPrefix}`);
+            return null;
+        } catch (error) {
+            console.error("Firestore export failed:", error);
+            return null;
+        }
+    });
+
+/**
+ * Order Status Change Notification
+ * Sends an email to the customer when their order status is updated.
+ */
+export const onOrderStatusChange = functions.firestore
+    .document("orders/{orderId}")
+    .onUpdate(async (change, context) => {
+        const before = change.before.data();
+        const after = change.after.data();
+
+        if (before.status === after.status) return null;
+
+        const customerEmail = after.customer?.email;
+        if (!customerEmail) {
+            console.warn(`No customer email found for order ${context.params.orderId}. Skipping notification.`);
+            return null;
+        }
+
+        const GMAIL_USER = process.env.GMAIL_USER || functions.config().gmail?.user;
+        const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD || functions.config().gmail?.pass;
+
+        if (!GMAIL_USER || !GMAIL_PASS) {
+            console.warn("Gmail credentials not configured. Skipping order notification.");
+            return null;
+        }
+
+        const transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: { user: GMAIL_USER, pass: GMAIL_PASS },
         });
 
-        // 3. Create Loyverse Receipt
-        // We need to deduct stock. The best way is to create a 'Sale' receipt in Loyverse.
-        try {
-            const LOYVERSE_TOKEN = functions.config().loyverse.token;
-            if (LOYVERSE_TOKEN && orderData?.items) {
-                const lineItems = orderData.items.map((item: any) => ({
-                    variant_id: item.loyverse_variant_id,
-                    quantity: item.quantity,
-                    price: item.web_price // Sold at web price
-                })).filter((l: any) => l.variant_id); // Only sync items linked to Loyverse
+        const orderId = context.params.orderId;
+        let subject = "";
+        let headline = "";
+        let body = "";
 
-                if (lineItems.length > 0) {
-                    const receiptPayload = {
-                        receipt_date: new Date().toISOString(),
-                        note: `Web Order ${orderId}`,
-                        line_items: lineItems,
-                        total_money: orderData.total_amount,
-                        store_id: '' // Need Store ID? API says optional, defaults to first? Let's check docs later.
-                        // Actually, 'receipts' endpoint usually requires store_id?
-                    };
+        switch (after.status) {
+            case "PAID":
+                subject = `Order Confirmed — ${orderId}`;
+                headline = "Your order is confirmed";
+                body = `
+                    <p>Thank you for your purchase! We've received your payment and are preparing your gear.</p>
+                    <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid #333;">
+                                <th style="text-align: left; padding: 8px;">Item</th>
+                                <th style="text-align: center; padding: 8px;">Qty</th>
+                                <th style="text-align: right; padding: 8px;">Price</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${(after.items || []).map((item: any) => `
+                                <tr style="border-bottom: 1px solid #eee;">
+                                    <td style="padding: 8px;">${item.name}</td>
+                                    <td style="padding: 8px; text-align: center;">${item.quantity}</td>
+                                    <td style="padding: 8px; text-align: right;">RM ${((item.price || 0) * (item.quantity || 1)).toFixed(2)}</td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="2" style="padding: 8px; text-align: right;"><strong>Total Paid:</strong></td>
+                                <td style="padding: 8px; text-align: right;"><strong>RM ${(after.total_amount || 0).toFixed(2)}</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                `;
+                break;
 
-                    // For now, we will just log the INTENT.
-                    // Real implementation requires fetching Store ID or hardcoding it.
-                    // Let's fetch stores first? No, too slow.
-                    // We will skip store_id and hope for default, or user config.
+            case "SHIPPED":
+                subject = `Gear on the way — ${orderId}`;
+                headline = "Your order is on the way";
+                body = `
+                    <p>Great news! Your gear has been dispatched and is currently in transit.</p>
+                    ${after.tracking_no ? `
+                        <div style="background: #f9f9f9; padding: 15px; border-left: 4px solid #333; margin: 20px 0;">
+                            <p style="margin: 0; font-size: 14px;"><strong>Tracking Number:</strong></p>
+                            <p style="margin: 5px 0 0 0; font-family: monospace; font-size: 18px; font-weight: bold; color: #000;">${after.tracking_no}</p>
+                        </div>
+                    ` : ""}
+                `;
+                break;
 
-                    const receiptsRes = await fetch('https://api.loyverse.com/v1.0/receipts', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${LOYVERSE_TOKEN}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(receiptPayload)
-                    });
+            case "DELIVERED":
+                subject = `Gear Delivered — ${orderId}`;
+                headline = "Your order has arrived";
+                body = `
+                    <p>Our records show that your order has been successfully delivered. We hope you're ready for aquatic dominance.</p>
+                    <p>Thank you for choosing Rud'Ark.</p>
+                `;
+                break;
 
-                    if (!receiptsRes.ok) {
-                        const err = await receiptsRes.text();
-                        console.error("Loyverse Receipt Failed:", err);
-                        await orderRef.update({ loyverse_sync: 'FAILED', loyverse_error: err });
-                    } else {
-                        const receiptData = await receiptsRes.json();
-                        await orderRef.update({ loyverse_sync: 'SUCCESS', loyverse_receipt_number: receiptData.receipt_number });
-                    }
-                }
-            }
-        } catch (err) {
-            console.error("Loyverse Sync Validation Error:", err);
+            case "CANCELLED":
+                subject = `Order Update — ${orderId}`;
+                headline = "Your order has been cancelled";
+                body = `
+                    <p>Your order ${orderId} has been cancelled. If a payment was already made, a refund will be processed to your original payment method shortly.</p>
+                    <p>If you have any questions, please contact our support team.</p>
+                `;
+                break;
+
+            default:
+                // No email for other statuses
+                return null;
         }
 
-        // 4. ParcelAsia - Create Shipment
+        const html = `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 40px; color: #333;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="text-transform: uppercase; letter-spacing: 2px; margin: 0;">Rud'Ark</h1>
+                    <p style="font-size: 12px; color: #666; margin-top: 5px;">TECHNICAL AQUATIC GEAR</p>
+                </div>
+                <h2 style="font-style: italic; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px;">${headline}</h2>
+                <p>Order ID: <strong>${orderId}</strong></p>
+                ${body}
+                <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999; text-align: center;">
+                    <p>&copy; ${new Date().getFullYear()} Rud'Ark Pro Shop. All rights reserved.</p>
+                </div>
+            </div>
+        `;
+
         try {
-            const PARCELASIA_API_KEY = functions.config().parcelasia.api_key;
+            await transporter.sendMail({
+                from: `"Rud'Ark Pro Shop" <${GMAIL_USER}>`,
+                to: customerEmail,
+                subject: subject,
+                html: html,
+            });
+            console.log(`Status update email sent to ${customerEmail} for order ${orderId} (Status: ${after.status})`);
+        } catch (error) {
+            console.error("Error sending order status email:", error);
+        }
 
-            // Validate required data check
-            if (PARCELASIA_API_KEY && orderData?.customer) {
+        return null;
+    });
 
-                // Construct Payload
-                // Note: We need sender details. For now, hardcoding RudArk sender info or using config placeholders.
-                // In a real app, these should be in a Settings document or env vars.
-                const senderDetails = {
-                    sender_name: "RudArk Store",
-                    sender_phone: "0123456789", // Replace with real phone
-                    sender_email: "admin@rudark.com",
-                    sender_address_line_1: "123 RudArk HQ",
-                    sender_postcode: "50000",
-                    sender_city: "Kuala Lumpur",
-                    sender_state: "dng", // state code? check docs. using 'dng' as placeholder
-                    sender_country_code: "MY"
-                };
+/**
+ * Abandoned Cart Recovery
+ * Runs every hour to check for PENDING orders that were created > 1 hour ago
+ * but less than 24 hours ago, and sends a reminder email.
+ */
+export const abandonedCartRecovery = functions.pubsub
+    .schedule("0 * * * *") // Runs every hour
+    .onRun(async (context) => {
+        // DISABLED — see TASKS 5.5. The recovery email pointed at /checkout, but the
+        // cart lives in localStorage, so customers landed on an empty page. Re-enable
+        // once a resume-cart server-side path is built.
+        console.log("[abandonedCartRecovery] disabled, returning early");
+        return null;
+        const now = Date.now();
+        const oneHourAgo = new Date(now - 1 * 60 * 60 * 1000);
+        const twentyFourHoursAgo = new Date(now - 24 * 60 * 60 * 1000);
 
-                const shipmentPayload = {
-                    api_key: PARCELASIA_API_KEY,
-                    integration_order_id: orderId,
-                    send_method: 'pickup', // or dropoff
-                    send_date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
-                    type: 'parcel',
-                    declared_weight: '1.0', // Default 1kg if not calculated
-                    provider_code: 'J&T', // Default provider? Or let ParcelAsia decide? required field.
-                    // "provider_code" is required. We might need to fetch available providers first or hardcode one like 'ABX', 'POSLAJU', 'JNT'.
-                    // Let's use 'JNT' (J&T Express) as a common default for now.
-                    size: 's', // default
-                    content_type: 'merchandise',
-                    content_description: 'Apparel',
-                    content_value: orderData?.total_amount || 0,
+        try {
+            const ordersSnap = await admin.firestore()
+                .collection("orders")
+                .where("status", "==", "PENDING")
+                .where("created_at", "<=", oneHourAgo)
+                .where("created_at", ">", twentyFourHoursAgo)
+                .get();
 
-                    ...senderDetails,
+            if (ordersSnap.empty) {
+                console.log("No abandoned carts found in the last hour.");
+                return null;
+            }
 
-                    receiver_name: orderData.customer.name,
-                    receiver_phone: orderData.customer.phone,
-                    receiver_email: 'customer@example.com', // We didn't ask email in checkout?
-                    receiver_address_line_1: orderData.customer.address,
-                    receiver_postcode: '50000', // We didn't parse postcode separately!
-                    // CRITICAL: We need postcode for shipping.
-                    // checkout.ts only collects 'address' string and 'state'.
-                    // We might need to extract postcode or ask for it explicitly.
-                    // For now, using a dummy postcode to prevent API error, but this needs fixing in Checkout.
-                    receiver_city: 'City', // Dummy
-                    receiver_state: orderData.customer.state,
-                    receiver_country_code: 'MY'
-                };
+            const GMAIL_USER = process.env.GMAIL_USER || functions.config().gmail?.user;
+            const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD || functions.config().gmail?.pass;
+            const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://rudark-web.vercel.app";
 
-                console.log("Creating ParcelAsia Shipment...", JSON.stringify(shipmentPayload));
+            if (!GMAIL_USER || !GMAIL_PASS) {
+                console.warn("Gmail credentials not configured. Skipping abandoned cart recovery.");
+                return null;
+            }
 
-                const paRes = await fetch('https://app.myparcelasia.com/apiv2/create_shipment', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(shipmentPayload)
+            const transporter = nodemailer.createTransport({
+                service: "gmail",
+                auth: { user: GMAIL_USER, pass: GMAIL_PASS },
+            });
+
+            const emailPromises = ordersSnap.docs.map(async (doc) => {
+                const order = doc.data();
+                
+                // Skip if already sent
+                if (order.abandoned_email_sent === true) return;
+
+                const customerEmail = order.customer?.email;
+                if (!customerEmail) return;
+
+                const orderId = doc.id;
+                const subject = "You left something behind — complete your Rud'Ark order";
+                
+                const html = `
+                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 40px; color: #333;">
+                        <div style="text-align: center; margin-bottom: 30px;">
+                            <h1 style="text-transform: uppercase; letter-spacing: 2px; margin: 0;">Rud'Ark</h1>
+                            <p style="font-size: 12px; color: #666; margin-top: 5px;">TECHNICAL AQUATIC GEAR</p>
+                        </div>
+                        <h2 style="font-style: italic; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px;">You left something behind</h2>
+                        <p>We noticed you were in the middle of an order. Your gear is still waiting for you.</p>
+                        
+                        <div style="background: #f9f9f9; padding: 20px; margin: 20px 0;">
+                            <p style="margin: 0 0 10px 0;"><strong>Order ID: ${orderId}</strong></p>
+                            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                                ${(order.items || []).map((item: any) => `
+                                    <tr>
+                                        <td style="padding: 5px 0;">${item.name} x ${item.quantity}</td>
+                                        <td style="padding: 5px 0; text-align: right;">RM ${((item.price || 0) * (item.quantity || 1)).toFixed(2)}</td>
+                                    </tr>
+                                `).join("")}
+                                <tr style="border-top: 1px solid #ddd;">
+                                    <td style="padding: 10px 0 0 0;"><strong>Total:</strong></td>
+                                    <td style="padding: 10px 0 0 0; text-align: right;"><strong>RM ${(order.total_amount || 0).toFixed(2)}</strong></td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="${BASE_URL}/checkout?order_id=${orderId}" style="background: #000; color: #fff; text-decoration: none; padding: 15px 30px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Complete Checkout</a>
+                        </div>
+
+                        <p style="font-size: 12px; color: #777;">If you've already completed this order under a different email, please ignore this message.</p>
+
+                        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999; text-align: center;">
+                            <p>&copy; ${new Date().getFullYear()} Rud'Ark Pro Shop. All rights reserved.</p>
+                        </div>
+                    </div>
+                `;
+
+                await transporter.sendMail({
+                    from: `"Rud'Ark Pro Shop" <${GMAIL_USER}>`,
+                    to: customerEmail,
+                    subject: subject,
+                    html: html,
                 });
 
-                const paData = await paRes.json();
+                await doc.ref.update({ abandoned_email_sent: true });
+                console.log(`Abandoned cart email sent to ${customerEmail} for order ${orderId}`);
+            });
 
-                if (paData.status) {
-                    console.log("ParcelAsia Shipment Created:", paData);
-                    await orderRef.update({
-                        parcel_asia_sync: 'SUCCESS',
-                        tracking_number: paData.data?.tracking_no || 'PENDING',
-                        shipment_key: paData.data?.shipment_key
-                    });
-                } else {
-                    console.error("ParcelAsia Failed:", paData.message);
-                    await orderRef.update({
-                        parcel_asia_sync: 'FAILED',
-                        parcel_asia_error: paData.message
-                    });
-                }
-            }
-        } catch (paError) {
-            console.error("ParcelAsia Integration Error:", paError);
+            await Promise.all(emailPromises);
+            return null;
+
+        } catch (error) {
+            console.error("Abandoned Cart Recovery Error:", error);
+            return null;
         }
+    });
 
-        res.status(200).send("OK");
 
-    } catch (error) {
-        console.error("Webhook Internal Error:", error);
-        res.status(500).send("Internal Server Error");
-    }
-});
+
+/**
+ * Release Stale Reservations
+ * Runs every 30 minutes to release stock from PENDING orders older than 30 minutes.
+ * Fixes C6: Stock leak from unredeemed PENDING orders.
+ */
+export const releaseStaleReservations = functions.pubsub
+    .schedule("*/30 * * * *")
+    .onRun(async (context) => {
+        const now = Date.now();
+        const thirtyMinsAgo = new Date(now - 30 * 60 * 1000);
+
+        try {
+            const ordersSnap = await admin.firestore()
+                .collection("orders")
+                .where("status", "==", "PENDING")
+                .where("created_at", "<=", thirtyMinsAgo)
+                .get();
+
+            if (ordersSnap.empty) {
+                console.log("No stale reservations found.");
+                return null;
+            }
+
+            let releasedCount = 0;
+            for (const doc of ordersSnap.docs) {
+                const order = doc.data();
+                
+                await admin.firestore().runTransaction(async (tx) => {
+                    // Double check status
+                    const currentDoc = await tx.get(doc.ref);
+                    if (currentDoc.data()?.status !== 'PENDING') return;
+
+                    // 1. COLLECT all unique product IDs from this order
+                    const itemProductIds = Array.from(new Set((order.items || []).map((i: any) => i.id).filter(Boolean))) as string[];
+                    if (itemProductIds.length === 0) return;
+
+                    // 2. READ ALL products first
+                    const productSnapshots = await Promise.all(
+                        itemProductIds.map(id => tx.get(admin.firestore().collection('products').doc(id)))
+                    );
+
+                    const productDataMap: Record<string, any> = {};
+                    productSnapshots.forEach(snap => {
+                        if (snap.exists) productDataMap[snap.id] = snap.data();
+                    });
+
+                    // 3. COMPUTE updates in memory
+                    const updatesToApply: Array<{ref: any, data: any}> = [];
+                    
+                    // We need a local copy of product data to aggregate multiple items hitting the same product
+                    const localProductState = JSON.parse(JSON.stringify(productDataMap));
+
+                    for (const item of (order.items || [])) {
+                        if (!item.id || !localProductState[item.id]) continue;
+                        
+                        const product = localProductState[item.id];
+                        const productRef = admin.firestore().collection('products').doc(item.id);
+                        
+                        const hasVariantOptions = item.selected_options && Object.keys(item.selected_options).length > 0;
+                        
+                        if (hasVariantOptions && product.variants) {
+                            const variantIdx = product.variants.findIndex((v: any) => {
+                                if (v.options) {
+                                    return Object.entries(item.selected_options).every(([k, val]) => v.options[k] === val);
+                                }
+                                return v.sku === item.sku;
+                            });
+
+                            if (variantIdx !== -1) {
+                                const variant = product.variants[variantIdx];
+                                variant.reserved_quantity = Math.max(0, (variant.reserved_quantity || 0) - item.quantity);
+                                product.reserved_quantity = product.variants.reduce((sum: number, v: any) => sum + (v.reserved_quantity || 0), 0);
+                            }
+                        } else {
+                            product.reserved_quantity = Math.max(0, (product.reserved_quantity || 0) - item.quantity);
+                        }
+                    }
+
+                    // 4. APPLY all accumulated updates
+                    for (const productId of itemProductIds) {
+                        if (localProductState[productId]) {
+                            tx.update(admin.firestore().collection('products').doc(productId), {
+                                variants: localProductState[productId].variants || null,
+                                reserved_quantity: localProductState[productId].reserved_quantity,
+                                updated_at: admin.firestore.FieldValue.serverTimestamp()
+                            });
+                        }
+                    }
+
+                    // Mark as EXPIRED
+                    tx.update(doc.ref, {
+                        status: 'EXPIRED',
+                        expired_at: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                });
+                releasedCount++;
+            }
+
+            console.log(`Released stock for ${releasedCount} stale orders.`);
+            return null;
+
+        } catch (error) {
+            console.error("Release Stale Reservations Error:", error);
+            return null;
+        }
+    });
+

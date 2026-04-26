@@ -3,6 +3,7 @@
 import { Product } from '@/types';
 import { useState, useEffect } from 'react';
 import AddToCartButton from './add-to-cart-button';
+import { trackViewItem } from '@/lib/analytics';
 
 export default function ProductDetails({
     product,
@@ -17,6 +18,17 @@ export default function ProductDetails({
     // Client-side stock fetching for live data
     const [liveStock, setLiveStock] = useState<Record<string, number>>(variantStock);
     const [stockLoading, setStockLoading] = useState(true);
+
+    // Fire view_item analytics once on mount
+    useEffect(() => {
+        trackViewItem({
+            name: product.name,
+            sku: product.sku,
+            price: product.promo_price || product.web_price,
+            category: product.category_slug,
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [product.sku]);
 
     // Fetch stock client-side for fresh data
     useEffect(() => {
@@ -79,7 +91,10 @@ export default function ProductDetails({
     const currentSku = activeVariant ? activeVariant.sku : product.sku;
 
     // Get stock for current variant - use liveStock for fresh data
-    const currentStock = activeVariant ? (liveStock[activeVariant.sku] || 0) : 0;
+    // For simple products (no variants), fall back to the Firebase-synced quantity
+    const currentStock = activeVariant
+        ? (liveStock[activeVariant.sku] || 0)
+        : (product.stock_quantity || 0);
 
     // Stock Status Logic
     // If activeVariant exists, use its status
@@ -207,7 +222,11 @@ export default function ProductDetails({
                                 {currentStatus === 'OUT' ? (
                                     <span className="text-red-500 font-bold">SOLD OUT</span>
                                 ) : currentStatus === 'LOW' ? (
-                                    <span className="text-orange-500 font-bold">LOW STOCK</span>
+                                    <span className="text-orange-400 font-bold">
+                                        {!stockLoading && currentStock > 0 && currentStock <= 10
+                                            ? `ONLY ${currentStock} LEFT`
+                                            : 'LOW STOCK'}
+                                    </span>
                                 ) : (currentStatus as string) === 'CONTACT_US' ? (
                                     <span className="text-blue-400 font-bold">SPECIAL ORDER</span>
                                 ) : (

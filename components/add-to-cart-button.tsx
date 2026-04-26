@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Loader2, ShoppingBag } from 'lucide-react';
 import { checkLoyverseStock } from '@/actions/check-loyverse-stock';
 import { useDialog } from '@/components/ui/dialog';
+import { trackAddToCart } from '@/lib/analytics';
 
 export default function AddToCartButton({ product, selectedOptions }: { product: Product, selectedOptions?: Record<string, string> }) {
     const { addToCart, cart } = useCart();
@@ -46,6 +47,7 @@ export default function AddToCartButton({ product, selectedOptions }: { product:
 
             // 3. Stock available - add to cart
             addToCart(product, quantity, selectedOptions);
+            trackAddToCart({ name: product.name, sku: product.sku, price: product.web_price }, quantity);
 
             // 4. Show success
             await dialog.success(`${quantity} × ${product.name} added to cart!`);

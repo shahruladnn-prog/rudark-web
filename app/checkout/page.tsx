@@ -293,6 +293,7 @@ export default function CheckoutPage() {
         }
 
         formData.append('appliedDiscount', appliedDiscount.toString());
+        if (appliedDiscount > 0 && promoCode) formData.append('promoCode', promoCode.toUpperCase().trim());
         formData.append('shippingCost', finalShippingCost.toFixed(2));
 
         // Only append shipping provider/service for delivery method

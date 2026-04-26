@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { serializeDocs } from '@/lib/serialize-firestore';
@@ -7,6 +8,8 @@ import { serializeDocs } from '@/lib/serialize-firestore';
  * Get all self-collection orders
  */
 export async function getCollectionOrders(status?: string) {
+    await requireRole(['owner', 'staff']);
+
     try {
         let query = adminDb
             .collection('orders')
@@ -34,6 +37,8 @@ export async function getCollectionOrders(status?: string) {
  * Mark an order as collected
  */
 export async function markAsCollected(orderId: string) {
+    await requireRole(['owner', 'staff']);
+
     try {
         await adminDb.collection('orders').doc(orderId).update({
             shipping_status: 'COLLECTED',
@@ -52,6 +57,8 @@ export async function markAsCollected(orderId: string) {
  * Get collection statistics
  */
 export async function getCollectionStats() {
+    await requireRole(['owner', 'staff']);
+
     try {
         const snapshot = await adminDb
             .collection('orders')

@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 
@@ -32,10 +33,14 @@ interface BatchSyncResult {
  * Orders with parcelasia_shipment_id but no tracking_no yet
  */
 export async function getOrdersNeedingSync(): Promise<{
+
     success: boolean;
     orders: { id: string; parcelasia_shipment_id: string; customer_name: string; created_at: string }[];
     error?: string;
 }> {
+    await requireRole(['owner', 'staff']);
+
+
     try {
         const snapshot = await adminDb.collection('orders')
             .where('tracking_synced', '==', false)
@@ -68,11 +73,15 @@ export async function getOrdersNeedingSync(): Promise<{
  * Uses /get_shipments endpoint with shipment_key
  */
 export async function fetchTrackingFromParcelAsia(shipmentKey: string): Promise<{
+
     success: boolean;
     tracking_no?: string;
     status?: string;
     error?: string;
 }> {
+    await requireRole(['owner', 'staff']);
+
+
     const apiKey = process.env.PARCELASIA_API_KEY;
 
     if (!apiKey) {
@@ -183,10 +192,14 @@ export async function fetchTrackingFromParcelAsia(shipmentKey: string): Promise<
  * Called automatically after create_shipment to skip manual checkout
  */
 export async function checkoutShipment(shipmentKey: string): Promise<{
+
     success: boolean;
     tracking_no?: string;
     error?: string;
 }> {
+    await requireRole(['owner', 'staff']);
+
+
     const apiKey = process.env.PARCELASIA_API_KEY;
 
     if (!apiKey) {
@@ -315,6 +328,8 @@ export async function checkoutShipment(shipmentKey: string): Promise<{
  * Sync tracking number for a single order
  */
 export async function syncOrderTracking(orderId: string): Promise<SyncResult> {
+    await requireRole(['owner', 'staff']);
+
     try {
         const orderRef = adminDb.collection('orders').doc(orderId);
         const orderDoc = await orderRef.get();
@@ -368,6 +383,8 @@ export async function syncOrderTracking(orderId: string): Promise<SyncResult> {
  * With rate limiting to avoid API throttling
  */
 export async function batchSyncTracking(): Promise<BatchSyncResult> {
+    await requireRole(['owner', 'staff']);
+
     const results: SyncResult[] = [];
     let synced = 0;
     let failed = 0;
@@ -426,10 +443,14 @@ export async function batchSyncTracking(): Promise<BatchSyncResult> {
  * Get order by tracking number (for barcode scanner)
  */
 export async function getOrderByTrackingNo(trackingNo: string): Promise<{
+
     success: boolean;
     order?: any;
     error?: string;
 }> {
+    await requireRole(['owner', 'staff']);
+
+
     try {
         if (!trackingNo || trackingNo.length < 5) {
             return { success: false, error: 'Invalid tracking number' };
@@ -553,9 +574,13 @@ export async function getOrderByTrackingNo(trackingNo: string): Promise<{
  * Mark order as shipped (from barcode scanner)
  */
 export async function markOrderShipped(orderId: string): Promise<{
+
     success: boolean;
     error?: string;
 }> {
+    await requireRole(['owner', 'staff']);
+
+
     try {
         const orderRef = adminDb.collection('orders').doc(orderId);
         const orderDoc = await orderRef.get();
@@ -595,9 +620,13 @@ export async function markOrderShipped(orderId: string): Promise<{
  * Mark order as cancelled
  */
 export async function markOrderCancelled(orderId: string, reason?: string): Promise<{
+
     success: boolean;
     error?: string;
 }> {
+    await requireRole(['owner', 'staff']);
+
+
     try {
         const orderRef = adminDb.collection('orders').doc(orderId);
         const orderDoc = await orderRef.get();
@@ -646,6 +675,8 @@ export async function generateWhatsAppLink(
     items?: { name: string; quantity: number }[],
     storeName?: string
 ): Promise<string> {
+    await requireRole(['owner', 'staff']);
+
     // Normalize phone number (remove +, spaces, leading 0)
     let normalized = phone.replace(/[\s\-\+]/g, '');
     if (normalized.startsWith('0')) {
@@ -719,6 +750,8 @@ export async function generateSimpleWhatsAppLink(
     phone: string,
     message: string
 ): Promise<string> {
+    await requireRole(['owner', 'staff']);
+
     let normalized = phone.replace(/[\s\-\+]/g, '');
     if (normalized.startsWith('0')) {
         normalized = '60' + normalized.substring(1);
@@ -734,9 +767,13 @@ export async function generateSimpleWhatsAppLink(
  * Used as fallback when automatic sync fails
  */
 export async function updateTrackingManually(orderId: string, trackingNo: string): Promise<{
+
     success: boolean;
     error?: string;
 }> {
+    await requireRole(['owner', 'staff']);
+
+
     try {
         if (!orderId || !trackingNo) {
             return { success: false, error: 'Order ID and tracking number are required' };
@@ -788,9 +825,13 @@ interface ReturnResult {
  * Updates order status to RETURNED
  */
 export async function markOrderReturned(orderId: string, reason?: string): Promise<{
+
     success: boolean;
     error?: string;
 }> {
+    await requireRole(['owner', 'staff']);
+
+
     try {
         const orderRef = adminDb.collection('orders').doc(orderId);
         const orderDoc = await orderRef.get();
@@ -832,10 +873,14 @@ export async function markOrderReturned(orderId: string, reason?: string): Promi
  * Increases inventory in Loyverse for each item
  */
 export async function restockOrderItems(orderId: string): Promise<{
+
     success: boolean;
     itemsRestocked: number;
     errors: string[];
 }> {
+    await requireRole(['owner', 'staff']);
+
+
     const errors: string[] = [];
     let itemsRestocked = 0;
 
@@ -953,6 +998,8 @@ export async function processReturn(
     reason?: string,
     shouldRestock: boolean = true
 ): Promise<ReturnResult> {
+    await requireRole(['owner', 'staff']);
+
     try {
         // First mark as returned
         const markResult = await markOrderReturned(orderId, reason);
@@ -986,10 +1033,14 @@ export async function processReturn(
  * Get all returned orders
  */
 export async function getReturnedOrders(): Promise<{
+
     success: boolean;
     orders: { id: string; customer_name: string; returned_at: string; return_reason: string; items_restocked: boolean }[];
     error?: string;
 }> {
+    await requireRole(['owner', 'staff']);
+
+
     try {
         const snapshot = await adminDb.collection('orders')
             .where('status', '==', 'RETURNED')
@@ -1044,10 +1095,14 @@ interface BatchDeliveryCheckResult {
  * Get all shipped orders that need delivery status check
  */
 export async function getShippedOrdersForDeliveryCheck(): Promise<{
+
     success: boolean;
     orders: { id: string; tracking_no: string; customer_name: string; shipped_at: string }[];
     error?: string;
 }> {
+    await requireRole(['owner', 'staff']);
+
+
     try {
         const snapshot = await adminDb.collection('orders')
             .where('status', '==', 'SHIPPED')
@@ -1078,6 +1133,7 @@ export async function getShippedOrdersForDeliveryCheck(): Promise<{
  * Check delivery status for a single tracking number using ParcelAsia /trace API
  */
 export async function traceParcelAsiaShipment(trackingNo: string): Promise<{
+
     success: boolean;
     status?: string;
     isDelivered: boolean;
@@ -1085,6 +1141,9 @@ export async function traceParcelAsiaShipment(trackingNo: string): Promise<{
     lastUpdate?: string;
     error?: string;
 }> {
+    await requireRole(['owner', 'staff']);
+
+
     const apiKey = process.env.PARCELASIA_API_KEY;
 
     if (!apiKey) {
@@ -1150,6 +1209,8 @@ export async function traceParcelAsiaShipment(trackingNo: string): Promise<{
  * Check and update delivery status for a single order
  */
 export async function checkOrderDeliveryStatus(orderId: string): Promise<DeliveryCheckResult> {
+    await requireRole(['owner', 'staff']);
+
     try {
         const orderRef = adminDb.collection('orders').doc(orderId);
         const orderDoc = await orderRef.get();
@@ -1253,6 +1314,8 @@ export async function checkOrderDeliveryStatus(orderId: string): Promise<Deliver
  * Rate limited to avoid API throttling
  */
 export async function batchCheckDeliveryStatuses(): Promise<BatchDeliveryCheckResult> {
+    await requireRole(['owner', 'staff']);
+
     const results: DeliveryCheckResult[] = [];
     let checked = 0;
     let delivered = 0;

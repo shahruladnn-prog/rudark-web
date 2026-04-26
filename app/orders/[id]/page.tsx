@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { getPublicOrderStatus } from '@/actions/public-order-actions';
 
 export default function OrderStatusPage() {
     const { id } = useParams();
+    const searchParams = useSearchParams();
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -14,11 +15,13 @@ export default function OrderStatusPage() {
     useEffect(() => {
         if (!id) return;
         const orderId = Array.isArray(id) ? id[0] : id;
+        const email = searchParams.get('email') || '';
 
         // Fetch order via Server Action (Admin SDK, bypasses security rules)
         const fetchOrder = async () => {
             try {
-                const result = await getPublicOrderStatus(orderId);
+                // TODO: pass customer email from a form if not in URL
+                const result = await getPublicOrderStatus(orderId, email);
                 if (result.success && result.order) {
                     setOrder(result.order);
                 } else {

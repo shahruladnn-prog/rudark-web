@@ -5,8 +5,10 @@ import Link from 'next/link';
 import { Plus, Edit, Trash2, FolderTree } from 'lucide-react';
 import { getCategories, deleteCategory } from '@/actions/category-actions';
 import { seedCategories } from '@/actions/seed-categories';
+import { useToast } from '@/components/ui/toast';
 
 export default function CategoriesPage() {
+    const { showToast } = useToast();
     const [categories, setCategories] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -22,101 +24,83 @@ export default function CategoriesPage() {
             const res = await seedCategories();
             if (res.success) {
                 // @ts-ignore
-                alert(`Success! Created ${res.count} categories. Page will refresh.`);
+                showToast('success', `Created ${res.count} categories successfully`);
                 await load();
             } else {
-                alert("Error Seeding: " + res.error);
+                showToast('error', 'Error seeding: ' + res.error);
             }
         } catch (e) {
-            alert("Error invoking action: " + e);
+            showToast('error', 'Error invoking action: ' + e);
         }
     };
 
-    useEffect(() => {
-        load();
-    }, []);
+    useEffect(() => { load(); }, []);
 
     const handleDelete = async (id: string) => {
         if (!confirm("Are you sure? This will not delete products, but will hide them from the menu.")) return;
         await deleteCategory(id);
         load();
-    }
+    };
 
     return (
-        <div className="max-w-7xl mx-auto pb-20">
-
-            {/* Header */}
-            <div className="flex justify-between items-end border-b border-rudark-grey pb-6 mb-8">
+        <div className="max-w-4xl pb-20">
+            <div className="flex flex-wrap gap-3 items-center justify-between mb-6">
                 <div>
-                    <h1 className="text-4xl font-condensed font-bold text-white uppercase mb-2">
-                        Category <span className="text-rudark-volt">Manager</span>
-                    </h1>
-                    <p className="text-gray-400 font-mono text-sm">
-                        Organize website navigation and product structure.
-                    </p>
+                    <h1 className="text-xl font-bold text-gray-900">Category Manager</h1>
+                    <p className="text-sm text-gray-400">Organize website navigation and product structure</p>
                 </div>
-                <div className="flex gap-4">
-                    <button
-                        onClick={async () => {
-                            const { testDatabaseConnection } = await import('@/actions/test-db');
-                            const res = await testDatabaseConnection();
-                            alert(JSON.stringify(res, null, 2));
-                        }}
-                        className="flex items-center gap-2 border border-rudark-volt text-rudark-volt px-4 py-2 rounded-sm font-condensed uppercase font-bold text-xs"
-                    >
+                <div className="flex gap-2">
+                    <button onClick={async () => {
+                        const { testDatabaseConnection } = await import('@/actions/test-db');
+                        const res = await testDatabaseConnection();
+                        showToast('info', JSON.stringify(res));
+                    }} className="px-3 py-2 border border-gray-200 text-gray-600 rounded text-sm hover:border-gray-300">
                         Test DB
                     </button>
-                    <button
-                        onClick={handleSeed}
-                        className="flex items-center gap-2 border border-rudark-grey text-gray-300 px-6 py-2 rounded-sm font-condensed uppercase font-bold tracking-wide hover:text-white hover:border-white transition-colors"
-                    >
-                        <FolderTree size={18} />
-                        Reset to Defaults
+                    <button onClick={handleSeed}
+                        className="flex items-center gap-2 px-3 py-2 border border-gray-200 text-gray-600 rounded text-sm hover:border-gray-300">
+                        <FolderTree size={15} /> Reset to Defaults
                     </button>
-                    <Link href="/admin/categories/new" className="flex items-center gap-2 bg-rudark-volt text-black px-6 py-2 rounded-sm font-condensed uppercase font-bold tracking-wide hover:bg-white transition-colors">
-                        <Plus size={18} />
-                        New Category
+                    <Link href="/admin/categories/new"
+                        className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700">
+                        <Plus size={15} /> New Category
                     </Link>
                 </div>
             </div>
 
-            {/* List */}
-            <div className="grid gap-4">
-                {categories.map((cat) => (
-                    <div key={cat.id} className="bg-rudark-carbon p-6 border border-rudark-grey rounded-sm flex items-center justify-between group hover:border-rudark-volt transition-colors">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-rudark-matte rounded-sm text-rudark-volt">
-                                <FolderTree size={24} />
+            <div className="space-y-3">
+                {categories.map(cat => (
+                    <div key={cat.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm flex items-center justify-between group hover:border-blue-300 transition-colors">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg">
+                                <FolderTree size={20} />
                             </div>
                             <div>
-                                <h3 className="text-xl font-condensed font-bold text-white uppercase">{cat.name}</h3>
-                                <p className="text-xs text-gray-500 font-mono uppercase">/{cat.slug} • {cat.subcategories?.length || 0} Subcategories</p>
+                                <h3 className="font-semibold text-gray-900">{cat.name}</h3>
+                                <p className="text-xs text-gray-400 font-mono">/{cat.slug} • {cat.subcategories?.length || 0} subcategories</p>
                             </div>
                         </div>
-
-                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Link href={`/admin/categories/${cat.id}`} className="p-2 text-gray-400 hover:text-white transition-colors">
-                                <Edit size={18} />
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Link href={`/admin/categories/${cat.id}`} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
+                                <Edit size={15} />
                             </Link>
-                            <button
-                                onClick={() => handleDelete(cat.id)}
-                                className="p-2 text-gray-400 hover:text-red-500 transition-colors">
-                                <Trash2 size={18} />
+                            <button onClick={() => handleDelete(cat.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+                                <Trash2 size={15} />
                             </button>
                         </div>
                     </div>
                 ))}
 
-                {loading && <div className="text-center text-gray-500 py-10">Loading Structure...</div>}
+                {loading && <div className="text-center text-gray-400 text-sm py-10">Loading…</div>}
 
                 {!loading && categories.length === 0 && (
-                    <div className="text-center py-20 bg-rudark-carbon border border-rudark-grey border-dashed rounded-sm">
-                        <p className="text-gray-400 mb-4">No categories found.</p>
-                        <Link href="/admin/categories/new" className="text-rudark-volt font-bold uppercase text-sm hover:underline">Create your first category</Link>
+                    <div className="text-center py-16 bg-white border border-dashed border-gray-200 rounded-lg">
+                        <FolderTree size={40} className="mx-auto text-gray-200 mb-3" />
+                        <p className="text-gray-400 mb-3 text-sm">No categories found.</p>
+                        <Link href="/admin/categories/new" className="text-blue-600 font-medium text-sm hover:underline">Create your first category</Link>
                     </div>
                 )}
             </div>
-
         </div>
     );
 }

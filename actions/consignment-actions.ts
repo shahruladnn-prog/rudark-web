@@ -1,6 +1,8 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { recordStockMovement } from './stock-movement-actions';
 import { revalidatePath } from 'next/cache';
 import {
@@ -66,7 +68,11 @@ export async function createConsignment(
         commission_rate?: number;
         notes?: string;
     }
-): Promise<{ success: boolean; consignment_id?: string; error?: string }> {
+): Promise<{
+
+ success: boolean; consignment_id?: string; error?: string }> {
+    await requireRole(['owner', 'staff']);
+
     try {
         const consignmentNumber = await generateConsignmentNumber();
 
@@ -111,56 +117,123 @@ export async function createConsignment(
 }
 
 /**
+ * Helper to update stock within a transaction and record movement
+ */
+async function applyStockUpdateTx(
+    transaction: any,
+    consignmentId: string,
+    consignmentNumber: string,
+    item: any,
+    type: 'TRANSFER_OUT' | 'TRANSFER_IN' | 'DAMAGE',
+    quantityChange: number // negative for deduction, positive for addition
+) {
+    const productRef = adminDb.collection('products').doc(item.product_id);
+    const productSnap = await transaction.get(productRef);
+    
+    if (!productSnap.exists) return;
+    
+    const product = productSnap.data()!;
+    let previousQty = 0;
+    let newQty = 0;
+
+    // Handle variant vs parent
+    if (item.variant_sku && product.variants && product.variants.length > 0) {
+        const vIdx = product.variants.findIndex((v: any) => v.sku === item.variant_sku);
+        if (vIdx !== -1) {
+            previousQty = product.variants[vIdx].stock_quantity || 0;
+            newQty = previousQty + quantityChange;
+            
+            const updatedVariants = [...product.variants];
+            updatedVariants[vIdx] = {
+                ...updatedVariants[vIdx],
+                stock_quantity: newQty
+            };
+
+            const newParentTotal = updatedVariants.reduce((sum: number, v: any) => sum + (v.stock_quantity || 0), 0);
+            
+            transaction.update(productRef, {
+                variants: updatedVariants,
+                stock_quantity: newParentTotal,
+                updated_at: FieldValue.serverTimestamp()
+            });
+        }
+    } else {
+        previousQty = product.stock_quantity || 0;
+        newQty = previousQty + quantityChange;
+        
+        transaction.update(productRef, {
+            stock_quantity: newQty,
+            updated_at: FieldValue.serverTimestamp()
+        });
+    }
+
+    // Log the movement
+    const movementRef = adminDb.collection('stock_movements').doc();
+    transaction.set(movementRef, {
+        product_id: item.product_id,
+        product_name: item.product_name,
+        variant_sku: item.variant_sku,
+        variant_label: item.variant_label,
+        type: type,
+        quantity: quantityChange,
+        previous_quantity: previousQty,
+        new_quantity: newQty,
+        reason: `Consignment ${type.replace('_', ' ').toLowerCase()}: ${consignmentNumber}`,
+        reference: consignmentId,
+        created_by: 'admin',
+        created_at: FieldValue.serverTimestamp()
+    });
+}
+
+/**
  * Send a consignment to partner (DRAFT -> ACTIVE)
  * This deducts stock from inventory
  */
-export async function sendConsignment(consignmentId: string): Promise<{ success: boolean; error?: string }> {
+export async function sendConsignment(consignmentId: string): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner', 'staff']);
+
     try {
-        const docRef = adminDb.collection('consignments').doc(consignmentId);
-        const doc = await docRef.get();
+        await adminDb.runTransaction(async (transaction) => {
+            const docRef = adminDb.collection('consignments').doc(consignmentId);
+            const doc = await transaction.get(docRef);
 
-        if (!doc.exists) {
-            return { success: false, error: 'Consignment not found' };
-        }
+            if (!doc.exists) throw new Error('Consignment not found');
+            const consignment = doc.data()!;
 
-        const consignment = doc.data()!;
+            if (consignment.status !== 'DRAFT') {
+                throw new Error(`Cannot send consignment with status: ${consignment.status}`);
+            }
 
-        if (consignment.status !== 'DRAFT') {
-            return { success: false, error: `Cannot send consignment with status: ${consignment.status}` };
-        }
+            // Deduct stock for each item
+            for (const item of consignment.items) {
+                await applyStockUpdateTx(
+                    transaction,
+                    consignmentId,
+                    consignment.consignment_number,
+                    item,
+                    'TRANSFER_OUT',
+                    -item.quantity_sent
+                );
+            }
 
-        // Deduct stock for each item
-        for (const item of consignment.items) {
-            await recordStockMovement({
-                product_id: item.product_id,
-                product_name: item.product_name,
-                variant_sku: item.variant_sku,
-                variant_label: item.variant_label,
-                type: 'TRANSFER_OUT',
-                quantity: -item.quantity_sent,
-                previous_quantity: 0, // Will be calculated
-                new_quantity: 0,
-                reason: `Consignment: ${consignment.consignment_number}`,
-                reference: consignmentId,
-                created_by: 'admin'
+            transaction.update(docRef, {
+                status: 'ACTIVE',
+                sent_at: new Date(),
+                updated_at: new Date()
             });
-        }
-
-        await docRef.update({
-            status: 'ACTIVE',
-            sent_at: new Date(),
-            updated_at: new Date()
         });
 
-        console.log(`[Consignment] Sent ${consignment.consignment_number}`);
+        console.log(`[Consignment] Sent ${consignmentId}`);
 
         revalidatePath('/admin/consignments');
         revalidatePath('/admin/stock');
 
         return { success: true };
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Consignment] Send error:', error);
-        return { success: false, error: error instanceof Error ? error.message : 'Failed to send consignment' };
+        return { success: false, error: error.message || 'Failed to send consignment' };
     }
 }
 
@@ -170,7 +243,11 @@ export async function sendConsignment(consignmentId: string): Promise<{ success:
 export async function recordConsignmentSales(
     consignmentId: string,
     salesData: Array<{ product_id: string; variant_sku?: string; quantity_sold: number }>
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner', 'staff']);
+
     try {
         const docRef = adminDb.collection('consignments').doc(consignmentId);
         const doc = await docRef.get();
@@ -232,120 +309,109 @@ export async function reconcileConsignment(
         quantity_returned: number;
         quantity_lost: number
     }>
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner', 'staff']);
+
     try {
-        const docRef = adminDb.collection('consignments').doc(consignmentId);
-        const doc = await docRef.get();
+        await adminDb.runTransaction(async (transaction) => {
+            const docRef = adminDb.collection('consignments').doc(consignmentId);
+            const doc = await transaction.get(docRef);
 
-        if (!doc.exists) {
-            return { success: false, error: 'Consignment not found' };
-        }
+            if (!doc.exists) throw new Error('Consignment not found');
+            const consignment = doc.data()!;
 
-        const consignment = doc.data()!;
-
-        if (!['ACTIVE', 'RECONCILING'].includes(consignment.status)) {
-            return { success: false, error: `Cannot reconcile consignment with status: ${consignment.status}` };
-        }
-
-        // Update items with return data
-        const updatedItems = consignment.items.map((item: ConsignmentItem) => {
-            const returnRecord = returnData.find(r =>
-                r.product_id === item.product_id &&
-                (r.variant_sku || undefined) === (item.variant_sku || undefined)
-            );
-
-            if (returnRecord) {
-                return {
-                    ...item,
-                    quantity_returned: item.quantity_returned + returnRecord.quantity_returned,
-                    quantity_lost: item.quantity_lost + returnRecord.quantity_lost
-                };
+            if (!['ACTIVE', 'RECONCILING'].includes(consignment.status)) {
+                throw new Error(`Cannot reconcile consignment with status: ${consignment.status}`);
             }
-            return item;
-        });
 
-        const summary = calculateConsignmentSummary(updatedItems);
+            // Update items with return data
+            const updatedItems = consignment.items.map((item: ConsignmentItem) => {
+                const returnRecord = returnData.find(r =>
+                    r.product_id === item.product_id &&
+                    (r.variant_sku || undefined) === (item.variant_sku || undefined)
+                );
 
-        // Restore stock for returned items
-        for (const returnRecord of returnData) {
-            if (returnRecord.quantity_returned > 0) {
+                if (returnRecord) {
+                    return {
+                        ...item,
+                        quantity_returned: item.quantity_returned + returnRecord.quantity_returned,
+                        quantity_lost: item.quantity_lost + returnRecord.quantity_lost
+                    };
+                }
+                return item;
+            });
+
+            const summary = calculateConsignmentSummary(updatedItems);
+
+            // Process each return record
+            for (const returnRecord of returnData) {
                 const item = consignment.items.find((i: ConsignmentItem) =>
                     i.product_id === returnRecord.product_id &&
                     (i.variant_sku || undefined) === (returnRecord.variant_sku || undefined)
                 );
 
-                if (item) {
-                    await recordStockMovement({
-                        product_id: item.product_id,
-                        product_name: item.product_name,
-                        variant_sku: item.variant_sku,
-                        variant_label: item.variant_label,
-                        type: 'TRANSFER_IN',
-                        quantity: returnRecord.quantity_returned,
-                        previous_quantity: 0,
-                        new_quantity: 0,
-                        reason: `Consignment return: ${consignment.consignment_number}`,
-                        reference: consignmentId,
-                        created_by: 'admin'
-                    });
+                if (!item) continue;
+
+                // Restore stock for returned items
+                if (returnRecord.quantity_returned > 0) {
+                    await applyStockUpdateTx(
+                        transaction,
+                        consignmentId,
+                        consignment.consignment_number,
+                        item,
+                        'TRANSFER_IN',
+                        returnRecord.quantity_returned
+                    );
+                }
+
+                // Record lost items as DAMAGE
+                if (returnRecord.quantity_lost > 0) {
+                    await applyStockUpdateTx(
+                        transaction,
+                        consignmentId,
+                        consignment.consignment_number,
+                        item,
+                        'DAMAGE',
+                        -returnRecord.quantity_lost
+                    );
                 }
             }
 
-            // Record lost items as DAMAGE
-            if (returnRecord.quantity_lost > 0) {
-                const item = consignment.items.find((i: ConsignmentItem) =>
-                    i.product_id === returnRecord.product_id &&
-                    (i.variant_sku || undefined) === (returnRecord.variant_sku || undefined)
-                );
+            // Check if fully reconciled
+            const newStatus = summary.is_fully_reconciled ? 'CLOSED' : 'RECONCILING';
 
-                if (item) {
-                    await recordStockMovement({
-                        product_id: item.product_id,
-                        product_name: item.product_name,
-                        variant_sku: item.variant_sku,
-                        variant_label: item.variant_label,
-                        type: 'DAMAGE',
-                        quantity: -returnRecord.quantity_lost,
-                        previous_quantity: 0,
-                        new_quantity: 0,
-                        reason: `Consignment loss: ${consignment.consignment_number}`,
-                        reference: consignmentId,
-                        created_by: 'admin'
-                    });
-                }
-            }
-        }
-
-        // Check if fully reconciled
-        const newStatus = summary.is_fully_reconciled ? 'CLOSED' : 'RECONCILING';
-
-        await docRef.update({
-            items: updatedItems,
-            status: newStatus,
-            total_returned_value: summary.total_returned_value,
-            total_lost_value: summary.total_lost_value,
-            reconciled_at: new Date(),
-            closed_at: newStatus === 'CLOSED' ? new Date() : null,
-            updated_at: new Date()
+            transaction.update(docRef, {
+                items: updatedItems,
+                status: newStatus,
+                total_returned_value: summary.total_returned_value,
+                total_lost_value: summary.total_lost_value,
+                reconciled_at: new Date(),
+                closed_at: newStatus === 'CLOSED' ? new Date() : null,
+                updated_at: new Date()
+            });
         });
-
-        console.log(`[Consignment] Reconciled ${consignment.consignment_number}, status: ${newStatus}`);
 
         revalidatePath('/admin/consignments');
         revalidatePath(`/admin/consignments/${consignmentId}`);
         revalidatePath('/admin/stock');
 
         return { success: true };
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Consignment] Reconcile error:', error);
-        return { success: false, error: error instanceof Error ? error.message : 'Failed to reconcile consignment' };
+        return { success: false, error: error.message || 'Failed to reconcile consignment' };
     }
 }
 
 /**
  * Close a consignment manually
  */
-export async function closeConsignment(consignmentId: string): Promise<{ success: boolean; error?: string }> {
+export async function closeConsignment(consignmentId: string): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner', 'staff']);
+
     try {
         const docRef = adminDb.collection('consignments').doc(consignmentId);
         const doc = await docRef.get();
@@ -372,55 +438,53 @@ export async function closeConsignment(consignmentId: string): Promise<{ success
 /**
  * Cancel a consignment (restore stock if already sent)
  */
-export async function cancelConsignment(consignmentId: string): Promise<{ success: boolean; error?: string }> {
+export async function cancelConsignment(consignmentId: string): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner', 'staff']);
+
     try {
-        const docRef = adminDb.collection('consignments').doc(consignmentId);
-        const doc = await docRef.get();
+        await adminDb.runTransaction(async (transaction) => {
+            const docRef = adminDb.collection('consignments').doc(consignmentId);
+            const doc = await transaction.get(docRef);
 
-        if (!doc.exists) {
-            return { success: false, error: 'Consignment not found' };
-        }
+            if (!doc.exists) throw new Error('Consignment not found');
+            const consignment = doc.data()!;
 
-        const consignment = doc.data()!;
+            // If it was active, restore the stock
+            if (consignment.status === 'ACTIVE' || consignment.status === 'RECONCILING') {
+                for (const item of consignment.items) {
+                    // Calculate how much is still out (not yet accounted for)
+                    const stillOut = item.quantity_sent - item.quantity_sold - item.quantity_returned - item.quantity_lost;
 
-        // If it was active, restore the stock
-        if (consignment.status === 'ACTIVE' || consignment.status === 'RECONCILING') {
-            for (const item of consignment.items) {
-                // Calculate how much is still out (not yet accounted for)
-                const stillOut = item.quantity_sent - item.quantity_sold - item.quantity_returned - item.quantity_lost;
-
-                if (stillOut > 0) {
-                    await recordStockMovement({
-                        product_id: item.product_id,
-                        product_name: item.product_name,
-                        variant_sku: item.variant_sku,
-                        variant_label: item.variant_label,
-                        type: 'TRANSFER_IN',
-                        quantity: stillOut,
-                        previous_quantity: 0,
-                        new_quantity: 0,
-                        reason: `Consignment cancelled: ${consignment.consignment_number}`,
-                        reference: consignmentId,
-                        created_by: 'admin'
-                    });
+                    if (stillOut > 0) {
+                        await applyStockUpdateTx(
+                            transaction,
+                            consignmentId,
+                            consignment.consignment_number,
+                            item,
+                            'TRANSFER_IN',
+                            stillOut
+                        );
+                    }
                 }
             }
-        }
 
-        await docRef.update({
-            status: 'CANCELLED',
-            updated_at: new Date()
+            transaction.update(docRef, {
+                status: 'CANCELLED',
+                updated_at: new Date()
+            });
         });
 
-        console.log(`[Consignment] Cancelled ${consignment.consignment_number}`);
+        console.log(`[Consignment] Cancelled ${consignmentId}`);
 
         revalidatePath('/admin/consignments');
         revalidatePath('/admin/stock');
 
         return { success: true };
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Consignment] Cancel error:', error);
-        return { success: false, error: error instanceof Error ? error.message : 'Failed to cancel consignment' };
+        return { success: false, error: error.message || 'Failed to cancel consignment' };
     }
 }
 
@@ -428,6 +492,8 @@ export async function cancelConsignment(consignmentId: string): Promise<{ succes
  * Get all consignments
  */
 export async function getConsignments(status?: ConsignmentStatus): Promise<Consignment[]> {
+    await requireRole(['owner', 'staff']);
+
     try {
         let query: any = adminDb.collection('consignments').orderBy('created_at', 'desc');
 
@@ -448,6 +514,8 @@ export async function getConsignments(status?: ConsignmentStatus): Promise<Consi
  * Get a single consignment by ID
  */
 export async function getConsignment(consignmentId: string): Promise<Consignment | null> {
+    await requireRole(['owner', 'staff']);
+
     try {
         const doc = await adminDb.collection('consignments').doc(consignmentId).get();
 

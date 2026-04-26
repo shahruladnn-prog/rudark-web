@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { Store } from '@/types/store';
@@ -97,6 +98,8 @@ export async function getDefaultStore(): Promise<Store | null> {
  * Get a single store by ID
  */
 export async function getStore(id: string): Promise<Store | null> {
+    await requireRole(['owner']);
+
     try {
         const doc = await adminDb.collection('stores').doc(id).get();
         if (!doc.exists) return null;
@@ -124,7 +127,11 @@ export async function getStore(id: string): Promise<Store | null> {
 /**
  * Save (create or update) a store
  */
-export async function saveStore(storeData: Partial<Store>): Promise<{ success: boolean; id?: string; error?: string }> {
+export async function saveStore(storeData: Partial<Store>): Promise<{
+
+ success: boolean; id?: string; error?: string }> {
+    await requireRole(['owner']);
+
     try {
         const { id, ...data } = storeData;
         const now = new Date();
@@ -181,7 +188,11 @@ export async function saveStore(storeData: Partial<Store>): Promise<{ success: b
 /**
  * Delete a store
  */
-export async function deleteStore(id: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteStore(id: string): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner']);
+
     try {
         // Check if it's the default store
         const storeDoc = await adminDb.collection('stores').doc(id).get();
@@ -202,7 +213,11 @@ export async function deleteStore(id: string): Promise<{ success: boolean; error
  * Initialize default store with current hardcoded values
  * Run once to migrate from hardcoded to dynamic
  */
-export async function initializeDefaultStore(): Promise<{ success: boolean; error?: string }> {
+export async function initializeDefaultStore(): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner']);
+
     try {
         // Check if any stores exist
         const existing = await adminDb.collection('stores').limit(1).get();

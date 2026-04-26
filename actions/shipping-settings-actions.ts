@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { ShippingSettings, DEFAULT_SHIPPING_SETTINGS } from '@/types/shipping-settings';
@@ -39,7 +40,11 @@ export async function getShippingSettings(): Promise<ShippingSettings> {
  * Update shipping settings in Firestore
  * Creates document if it doesn't exist
  */
-export async function updateShippingSettings(settings: Partial<ShippingSettings>): Promise<{ success: boolean; error?: string }> {
+export async function updateShippingSettings(settings: Partial<ShippingSettings>): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner', 'staff']);
+
     try {
         const docRef = adminDb.doc(SETTINGS_DOC_PATH);
 

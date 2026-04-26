@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { serializeFirestoreData } from '@/lib/serialize-firestore';
@@ -10,6 +11,8 @@ const SETTINGS_DOC = 'settings/collection_settings';
  * Get collection settings from Firestore
  */
 export async function getCollectionSettings(): Promise<CollectionSettings> {
+    await requireRole(['owner', 'staff']);
+
     try {
         const doc = await adminDb.doc(SETTINGS_DOC).get();
 
@@ -34,6 +37,8 @@ export async function getCollectionSettings(): Promise<CollectionSettings> {
  * Update collection settings
  */
 export async function updateCollectionSettings(settings: CollectionSettings) {
+    await requireRole(['owner', 'staff']);
+
     try {
         await adminDb.doc(SETTINGS_DOC).set(settings, { merge: true });
         return { success: true };
@@ -47,6 +52,8 @@ export async function updateCollectionSettings(settings: CollectionSettings) {
  * Add a new collection point
  */
 export async function addCollectionPoint(point: Omit<CollectionPoint, 'id' | 'created_at' | 'updated_at'>) {
+    await requireRole(['owner', 'staff']);
+
     try {
         const settings = await getCollectionSettings();
 
@@ -72,6 +79,8 @@ export async function addCollectionPoint(point: Omit<CollectionPoint, 'id' | 'cr
  * Update a collection point
  */
 export async function updateCollectionPoint(id: string, updates: Partial<CollectionPoint>) {
+    await requireRole(['owner', 'staff']);
+
     try {
         const settings = await getCollectionSettings();
 
@@ -99,6 +108,8 @@ export async function updateCollectionPoint(id: string, updates: Partial<Collect
  * Delete a collection point
  */
 export async function deleteCollectionPoint(id: string) {
+    await requireRole(['owner', 'staff']);
+
     try {
         const settings = await getCollectionSettings();
 

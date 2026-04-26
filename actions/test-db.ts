@@ -1,8 +1,11 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 
 export async function testDatabaseConnection() {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     const timestamp = new Date().toISOString();
     const testRef = adminDb.collection('_debug_test').doc('connectivity_check');
 

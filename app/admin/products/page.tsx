@@ -2,265 +2,203 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Edit, Trash2, Search, Plus, RefreshCw, Package } from 'lucide-react';
-import { getProducts } from '@/actions/product-actions';
-
-interface Product {
-    id: string;
-    name: string;
-    sku: string;
-    category_slug?: string;
-    subcategory_slug?: string;
-    web_price?: number;
-    promo_price?: number;
-    stock_quantity?: number;
-    stock_status?: string;
-    images?: string[];
-}
+import { 
+    Edit, Trash2, Search, Plus, RefreshCw, 
+    Eye, EyeOff, Home, ExternalLink, Tag
+} from 'lucide-react';
+import { getProducts, deleteProduct, toggleProductVisibility } from '@/actions/product-actions';
+import { useToast } from '@/components/ui/toast';
 
 export default function AdminProductsPage() {
-    const [products, setProducts] = useState<Product[]>([]);
+    const { showToast } = useToast();
+    const [products, setProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('all');
-    const [statusFilter, setStatusFilter] = useState('all');
 
     const loadProducts = async () => {
         setLoading(true);
         try {
             const data = await getProducts();
             setProducts(data);
-        } catch (error) {
-            console.error('Failed to load products:', error);
+        } catch {
+            showToast('error', 'Failed to load products');
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => {
-        loadProducts();
-    }, []);
+    useEffect(() => { loadProducts(); }, []);
 
-    // Get unique categories for filter dropdown
     const categories = useMemo(() => {
         const cats = new Set<string>();
-        products.forEach(p => {
-            if (p.category_slug) cats.add(p.category_slug);
-        });
+        products.forEach(p => { if (p.category_slug) cats.add(p.category_slug); });
         return Array.from(cats).sort();
     }, [products]);
 
-    // Filter products based on search and filters
     const filteredProducts = useMemo(() => {
-        return products.filter(product => {
-            // Search filter
-            const query = searchQuery.toLowerCase();
-            const matchesSearch = !query ||
-                product.name?.toLowerCase().includes(query) ||
-                product.sku?.toLowerCase().includes(query);
-
-            // Category filter
-            const matchesCategory = categoryFilter === 'all' ||
-                product.category_slug === categoryFilter;
-
-            // Status filter
-            const matchesStatus = statusFilter === 'all' ||
-                product.stock_status === statusFilter;
-
-            return matchesSearch && matchesCategory && matchesStatus;
+        return products.filter(p => {
+            const q = searchQuery.toLowerCase();
+            const matchesSearch = !q || p.name?.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q);
+            const matchesCategory = categoryFilter === 'all' || p.category_slug === categoryFilter;
+            return matchesSearch && matchesCategory;
         });
-    }, [products, searchQuery, categoryFilter, statusFilter]);
+    }, [products, searchQuery, categoryFilter]);
 
-    const handleSearch = () => {
-        // Already reactive via useMemo
+    const handleToggleVisibility = async (id: string, field: 'is_public' | 'is_home_public', current: boolean) => {
+        const res = await toggleProductVisibility(id, field, current);
+        if (res.success) {
+            setProducts(products.map(p => p.id === id ? { ...p, [field]: !current } : p));
+            showToast('success', 'Visibility updated');
+        }
+    };
+
+    const handleDelete = async (id: string, name: string) => {
+        if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+        const res = await deleteProduct(id);
+        if (res.success) {
+            showToast('success', 'Product deleted');
+            loadProducts();
+        } else {
+            showToast('error', res.error || 'Failed to delete');
+        }
     };
 
     return (
-        <div className="max-w-7xl mx-auto pb-20">
-            {/* Header */}
-            <div className="flex justify-between items-end border-b border-rudark-grey pb-6 mb-8">
+        <div className="max-w-[1800px] mx-auto pb-20">
+            {/* Industrial Header */}
+            <div className="flex flex-wrap gap-3 items-center justify-between mb-8 border-b border-gray-100 pb-6">
                 <div>
-                    <h1 className="text-4xl font-condensed font-bold text-white uppercase mb-2">
-                        Product <span className="text-rudark-volt">Master</span>
-                    </h1>
-                    <p className="text-gray-400 font-mono text-sm">
-                        Manage inventory, pricing, and content.
-                    </p>
+                    <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">Product Catalog</h1>
+                    <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Master Listing — {filteredProducts.length} Items</p>
                 </div>
-                <div className="flex gap-4">
-                    <button
-                        onClick={loadProducts}
-                        disabled={loading}
-                        className="flex items-center gap-2 px-4 py-2 border border-rudark-grey text-gray-300 hover:border-rudark-volt hover:text-rudark-volt transition-colors rounded-sm disabled:opacity-50"
-                    >
-                        <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-                        Refresh
+                <div className="flex items-center gap-2">
+                    <button onClick={loadProducts} disabled={loading}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all rounded-sm text-xs font-bold uppercase">
+                        <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
                     </button>
-                    <Link href="/admin/products/new" className="flex items-center gap-2 bg-rudark-volt text-black px-6 py-2 rounded-sm font-condensed uppercase font-bold tracking-wide hover:bg-white transition-colors">
-                        <Plus size={18} />
-                        New Product
+                    <Link href="/admin/products/sync"
+                        className="flex items-center gap-2 border-2 border-emerald-500 text-emerald-600 px-4 py-2 rounded-sm text-xs font-black uppercase hover:bg-emerald-500 hover:text-white transition-all">
+                        <RefreshCw size={14} /> Sync Loyverse
+                    </Link>
+                    <Link href="/admin/products/new"
+                        className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-sm text-xs font-black uppercase hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all">
+                        <Plus size={14} /> New Product
                     </Link>
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="bg-rudark-carbon p-4 border border-rudark-grey rounded-sm mb-6">
-                <div className="flex flex-wrap gap-4 items-end">
-                    {/* Search */}
-                    <div className="flex-1 min-w-[250px]">
-                        <label className="text-xs text-gray-500 uppercase mb-1 block">Search</label>
-                        <div className="flex">
-                            <div className="relative flex-1">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                                <input
-                                    type="text"
-                                    placeholder="SKU or product name..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full bg-rudark-matte text-white pl-10 pr-4 py-2 text-sm border border-rudark-grey rounded-sm focus:border-rudark-volt focus:outline-none placeholder-gray-600 font-mono"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Category Filter */}
-                    <div>
-                        <label className="text-xs text-gray-500 uppercase mb-1 block">Category</label>
-                        <select
-                            value={categoryFilter}
-                            onChange={(e) => setCategoryFilter(e.target.value)}
-                            className="bg-rudark-matte text-white px-4 py-2 text-sm border border-rudark-grey rounded-sm focus:border-rudark-volt focus:outline-none font-mono min-w-[150px]"
-                        >
-                            <option value="all">All Categories</option>
-                            {categories.map(cat => (
-                                <option key={cat} value={cat}>{cat.replace(/-/g, ' ').toUpperCase()}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Status Filter */}
-                    <div>
-                        <label className="text-xs text-gray-500 uppercase mb-1 block">Stock Status</label>
-                        <select
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            className="bg-rudark-matte text-white px-4 py-2 text-sm border border-rudark-grey rounded-sm focus:border-rudark-volt focus:outline-none font-mono min-w-[150px]"
-                        >
-                            <option value="all">All Status</option>
-                            <option value="IN_STOCK">In Stock</option>
-                            <option value="LOW">Low Stock</option>
-                            <option value="OUT_OF_STOCK">Out of Stock</option>
-                        </select>
-                    </div>
-
-                    {/* Results count */}
-                    <div className="text-gray-500 text-sm">
-                        Showing {filteredProducts.length} of {products.length}
-                    </div>
+            {/* High Density Filters */}
+            <div className="flex flex-wrap gap-4 items-center mb-6 bg-white p-3 border border-gray-100 rounded-sm shadow-sm">
+                <div className="relative flex-1 min-w-[300px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
+                    <input type="text" placeholder="QUICK SEARCH (SKU, NAME)..." value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 text-sm bg-gray-50 border-none focus:ring-2 focus:ring-blue-500/10 text-gray-900 font-bold uppercase placeholder-gray-300 transition-all" />
                 </div>
+                <div className="flex items-center gap-2 bg-gray-50 px-3 py-2.5 rounded-sm border border-gray-100">
+                    <Tag size={14} className="text-gray-400" />
+                    <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
+                        className="bg-transparent text-xs font-bold text-gray-700 uppercase focus:outline-none min-w-[150px]">
+                        <option value="all">All Categories</option>
+                        {categories.map(c => <option key={c} value={c}>{c.replace(/-/g, ' ')}</option>)}
+                    </select>
+                </div>
+                {categoryFilter !== 'all' && (
+                    <button onClick={() => setCategoryFilter('all')} className="text-[10px] font-black text-blue-600 uppercase hover:underline">Clear Filter</button>
+                )}
             </div>
 
-            {/* Data Table */}
-            <div className="bg-rudark-carbon border border-rudark-grey rounded-sm overflow-hidden">
+            {/* Industrial Table */}
+            <div className="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden">
                 <table className="w-full text-left border-collapse">
-                    <thead className="bg-rudark-matte border-b border-rudark-grey">
-                        <tr>
-                            <th className="p-4 text-xs font-mono text-rudark-volt uppercase w-20">Image</th>
-                            <th className="p-4 text-xs font-mono text-rudark-volt uppercase">Product Info</th>
-                            <th className="p-4 text-xs font-mono text-rudark-volt uppercase">Category</th>
-                            <th className="p-4 text-xs font-mono text-rudark-volt uppercase">Price</th>
-                            <th className="p-4 text-xs font-mono text-rudark-volt uppercase">Stock</th>
-                            <th className="p-4 text-xs font-mono text-rudark-volt uppercase text-right">Actions</th>
+                    <thead>
+                        <tr className="bg-gray-50 text-gray-400 text-[10px] font-black uppercase tracking-widest border-b border-gray-200">
+                            <th className="px-6 py-4">Product Detail</th>
+                            <th className="px-6 py-4">Category</th>
+                            <th className="px-6 py-4">Price (MYR)</th>
+                            <th className="px-6 py-4 text-center">Online Store</th>
+                            <th className="px-6 py-4 text-center">Home Page</th>
+                            <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-gray-50">
                         {loading ? (
-                            <tr>
-                                <td colSpan={6} className="p-12 text-center text-gray-500">
-                                    Loading products...
-                                </td>
-                            </tr>
+                            <tr><td colSpan={6} className="px-6 py-20 text-center text-gray-300 font-bold uppercase tracking-widest animate-pulse">Fetching Catalog...</td></tr>
                         ) : filteredProducts.length === 0 ? (
-                            <tr>
-                                <td colSpan={6} className="p-12 text-center text-gray-500">
-                                    {products.length === 0
-                                        ? 'No products found. Sync from Loyverse first.'
-                                        : 'No products match your filters.'}
+                            <tr><td colSpan={6} className="px-6 py-20 text-center text-gray-300 font-bold uppercase tracking-widest">No matching products found</td></tr>
+                        ) : filteredProducts.map(p => (
+                            <tr key={p.id} className="hover:bg-blue-50/30 transition-colors group">
+                                <td className="px-6 py-4">
+                                    <div className="font-bold text-gray-900 text-sm uppercase truncate max-w-md group-hover:text-blue-600 transition-colors">{p.name}</div>
+                                    <div className="text-[10px] text-gray-400 font-mono mt-0.5 flex items-center gap-2">
+                                        <span className="bg-gray-100 px-1 rounded text-gray-500 font-black tracking-tighter">SKU</span>
+                                        {p.sku}
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <button 
+                                        onClick={() => setCategoryFilter(p.category_slug || 'all')}
+                                        className="text-[10px] font-black text-gray-500 uppercase px-2 py-1 bg-gray-100 hover:bg-blue-600 hover:text-white transition-all rounded-sm"
+                                    >
+                                        {p.category_slug?.replace(/-/g, ' ') || 'Uncategorised'}
+                                    </button>
+                                </td>
+                                <td className="px-6 py-4">
+                                    {p.promo_price ? (
+                                        <div className="flex flex-col">
+                                            <span className="text-blue-600 font-black text-sm font-mono">RM{p.promo_price.toFixed(2)}</span>
+                                            <span className="text-[10px] text-gray-400 line-through font-mono">RM{p.web_price?.toFixed(2)}</span>
+                                        </div>
+                                    ) : (
+                                        <span className="text-gray-900 font-black text-sm font-mono">RM{p.web_price?.toFixed(2) || '0.00'}</span>
+                                    )}
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                    <button 
+                                        onClick={() => handleToggleVisibility(p.id, 'is_public', p.is_public)}
+                                        className={`p-2 rounded-sm transition-all ${p.is_public ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-gray-300 hover:text-gray-400'}`}
+                                        title={p.is_public ? "Hide from Store" : "Show in Store"}
+                                    >
+                                        {p.is_public ? <Eye size={18} /> : <EyeOff size={18} />}
+                                    </button>
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                    <button 
+                                        onClick={() => handleToggleVisibility(p.id, 'is_home_public', p.is_home_public)}
+                                        className={`p-2 rounded-sm transition-all ${p.is_home_public ? 'text-amber-500 bg-amber-50 hover:bg-amber-100' : 'text-gray-300 hover:text-gray-400'}`}
+                                        title={p.is_home_public ? "Remove from Homepage" : "Show on Homepage"}
+                                    >
+                                        <Home size={18} className={p.is_home_public ? 'fill-amber-500' : ''} />
+                                    </button>
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                    <div className="flex items-center justify-end gap-1 group-hover:opacity-100 opacity-0 transition-opacity">
+                                        <Link href={`/product/${p.sku}`} target="_blank"
+                                            className="p-2 text-gray-400 hover:text-blue-600 transition-colors">
+                                            <ExternalLink size={16} />
+                                        </Link>
+                                        <Link href={`/admin/products/${p.id}`}
+                                            className="p-2 text-gray-400 hover:text-blue-600 transition-colors">
+                                            <Edit size={16} />
+                                        </Link>
+                                        <button onClick={() => handleDelete(p.id, p.name)}
+                                            className="p-2 text-gray-400 hover:text-red-500 transition-colors">
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
-                        ) : (
-                            filteredProducts.map((product) => (
-                                <tr key={product.id} className="border-b border-rudark-grey/30 hover:bg-rudark-matte/50 transition-colors group">
-                                    <td className="p-4">
-                                        <div className="w-14 h-14 bg-rudark-matte rounded-sm border border-rudark-grey/50 overflow-hidden">
-                                            {product.images && product.images[0] ? (
-                                                <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-gray-600">
-                                                    <Package size={20} />
-                                                </div>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="font-bold text-white uppercase font-condensed">{product.name}</div>
-                                        <div className="text-rudark-volt font-mono text-xs">{product.sku}</div>
-                                    </td>
-                                    <td className="p-4">
-                                        <span className="inline-block px-2 py-1 bg-rudark-grey/30 text-gray-300 text-xs font-mono uppercase rounded-sm border border-rudark-grey/50">
-                                            {product.category_slug || 'Uncategorized'}
-                                        </span>
-                                    </td>
-                                    <td className="p-4 font-mono text-sm">
-                                        {product.promo_price ? (
-                                            <div className="flex flex-col">
-                                                <span className="text-rudark-volt font-bold">RM {product.promo_price.toFixed(2)}</span>
-                                                <span className="text-gray-500 line-through text-xs">RM {product.web_price?.toFixed(2)}</span>
-                                            </div>
-                                        ) : (
-                                            <span className="text-white">RM {product.web_price?.toFixed(2) || '0.00'}</span>
-                                        )}
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="flex flex-col">
-                                            <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-sm text-xs font-bold uppercase border ${product.stock_status === 'IN_STOCK' ? 'bg-green-900/20 text-green-400 border-green-900/50' :
-                                                    product.stock_status === 'LOW' ? 'bg-yellow-900/20 text-yellow-400 border-yellow-900/50' :
-                                                        'bg-red-900/20 text-red-400 border-red-900/50'
-                                                }`}>
-                                                <span className={`w-1.5 h-1.5 rounded-full ${product.stock_status === 'IN_STOCK' ? 'bg-green-400' :
-                                                        product.stock_status === 'LOW' ? 'bg-yellow-400' :
-                                                            'bg-red-400'
-                                                    }`} />
-                                                {product.stock_status?.replace('_', ' ') || 'UNKNOWN'}
-                                            </span>
-                                            <span className="text-gray-500 text-xs mt-1">
-                                                Qty: {product.stock_quantity ?? 0}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="p-4 text-right">
-                                        <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Link
-                                                href={`/admin/products/${product.id}`}
-                                                className="p-2 text-gray-400 hover:text-rudark-volt hover:bg-white/5 rounded-sm transition-colors"
-                                            >
-                                                <Edit size={18} />
-                                            </Link>
-                                            <button className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-900/10 rounded-sm transition-colors">
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
+                        ))}
                     </tbody>
                 </table>
             </div>
 
-            {/* Footer Stats */}
-            <div className="mt-4 text-right text-gray-500 text-sm">
-                {filteredProducts.length} products displayed
+            <div className="mt-6 flex justify-between items-center px-2">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">End of Catalog</span>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                    {filteredProducts.length} of {products.length} Products Found
+                </p>
             </div>
         </div>
     );

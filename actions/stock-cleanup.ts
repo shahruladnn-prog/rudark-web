@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { releaseReservedStock } from './stock-validation';
@@ -16,6 +17,8 @@ import { revalidatePath } from 'next/cache';
  * - When payment webhook reports failure
  */
 export async function cleanupExpiredReservations(expiryMinutes: number = 30) {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const expiryTime = new Date(Date.now() - expiryMinutes * 60 * 1000);
 
@@ -97,6 +100,8 @@ export async function cleanupExpiredReservations(expiryMinutes: number = 30) {
  * Returns summary without actually cleaning up
  */
 export async function checkExpiredReservations(expiryMinutes: number = 30) {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const expiryTime = new Date(Date.now() - expiryMinutes * 60 * 1000);
 

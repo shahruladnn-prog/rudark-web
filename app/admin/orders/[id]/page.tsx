@@ -1,46 +1,45 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Package, Truck, MapPin, User, Mail, Phone, Clock, CheckCircle, XCircle, RefreshCw, RotateCcw, X } from 'lucide-react';
+import {
+    ArrowLeft, Package, Truck, MapPin, User, Mail, Phone,
+    CheckCircle, RefreshCw, RotateCcw, X, AlertTriangle, ExternalLink, Clock
+} from 'lucide-react';
 import { getOrderById, updateOrderStatus, reprocessOrder } from '@/actions/order-admin-actions';
-import { processSuccessfulOrder } from '@/actions/order-utils';
 import { processRefund, getRefundableItems } from '@/actions/refund-actions';
 import { generateWhatsAppLink } from '@/actions/parcelasia-sync';
+import { useToast } from '@/components/ui/toast';
 
 const STATUS_OPTIONS = [
-    { value: 'PENDING', label: 'Pending', color: 'yellow' },
-    { value: 'EXPIRED', label: 'Expired', color: 'gray' },
-    { value: 'PAID', label: 'Paid', color: 'green' },
-    { value: 'PROCESSING', label: 'Processing', color: 'blue' },
-    { value: 'READY_TO_SHIP', label: 'Ready to Ship', color: 'blue' },
-    { value: 'SHIPPED', label: 'Shipped', color: 'purple' },
-    { value: 'DELIVERED', label: 'Delivered', color: 'green' },
-    { value: 'COMPLETED', label: 'Completed', color: 'green' },
-    { value: 'REFUNDED', label: 'Refunded', color: 'orange' },
-    { value: 'CANCELLED', label: 'Cancelled', color: 'red' },
+    { value: 'PENDING', label: 'Pending' },
+    { value: 'EXPIRED', label: 'Expired' },
+    { value: 'PAID', label: 'Paid' },
+    { value: 'PROCESSING', label: 'Processing' },
+    { value: 'READY_TO_SHIP', label: 'Ready to Ship' },
+    { value: 'SHIPPED', label: 'Shipped' },
+    { value: 'DELIVERED', label: 'Delivered' },
+    { value: 'COMPLETED', label: 'Completed' },
+    { value: 'REFUNDED', label: 'Refunded' },
+    { value: 'CANCELLED', label: 'Cancelled' },
 ];
 
-interface PageParams {
-    params: Promise<{ id: string }>;
-}
+const IRREVERSIBLE_STATUSES = new Set(['SHIPPED', 'DELIVERED', 'COMPLETED', 'REFUNDED', 'CANCELLED']);
+
+interface PageParams { params: Promise<{ id: string }>; }
 
 export default function OrderDetailPage({ params }: PageParams) {
-    const router = useRouter();
+    const { showToast } = useToast();
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [updating, setUpdating] = useState(false);
-    const [orderId, setOrderId] = useState<string>('');
+    const [orderId, setOrderId] = useState('');
     const [showRefundModal, setShowRefundModal] = useState(false);
     const [refundItems, setRefundItems] = useState<any[]>([]);
     const [refundReason, setRefundReason] = useState('');
 
     useEffect(() => {
-        params.then(p => {
-            setOrderId(p.id);
-            loadOrder(p.id);
-        });
+        params.then(p => { setOrderId(p.id); loadOrder(p.id); });
     }, [params]);
 
     const loadOrder = async (id: string) => {
@@ -52,30 +51,30 @@ export default function OrderDetailPage({ params }: PageParams) {
 
     const handleStatusChange = async (newStatus: string) => {
         if (!orderId) return;
+        if (IRREVERSIBLE_STATUSES.has(newStatus) && newStatus !== order.status) {
+            if (!confirm(`Change status to ${newStatus}? This action is difficult to reverse.`)) return;
+        }
         setUpdating(true);
         const result = await updateOrderStatus(orderId, newStatus);
         if (result.success) {
+            showToast('success', `Status updated to ${newStatus}`);
             await loadOrder(orderId);
         } else {
-            alert('Failed to update status: ' + result.error);
+            showToast('error', 'Failed to update status: ' + result.error);
         }
         setUpdating(false);
     };
 
     const handleReprocess = async () => {
         if (!orderId) return;
-        if (!confirm('Re-run order processing? This will mark as PAID (if pending), sync Loyverse, and create ParcelAsia shipment.')) return;
+        if (!confirm('Re-run order processing? This marks as PAID (if pending), syncs Loyverse, and creates a ParcelAsia shipment.')) return;
         setUpdating(true);
-        try {
-            const result = await reprocessOrder(orderId);
-            if (result.success) {
-                await loadOrder(orderId);
-                alert('Order reprocessed successfully!');
-            } else {
-                alert('Reprocess failed: ' + result.error);
-            }
-        } catch (error) {
-            alert('Failed to reprocess: ' + error);
+        const result = await reprocessOrder(orderId);
+        if (result.success) {
+            showToast('success', 'Order reprocessed successfully');
+            await loadOrder(orderId);
+        } else {
+            showToast('error', 'Reprocess failed: ' + result.error);
         }
         setUpdating(false);
     };
@@ -91,249 +90,241 @@ export default function OrderDetailPage({ params }: PageParams) {
             })));
             setShowRefundModal(true);
         } else {
-            alert('No refundable items found');
+            showToast('warning', 'No refundable items found for this order');
         }
     };
+
+    const refundTotal = refundItems.reduce(
+        (sum, item) => sum + ((item.price || 0) * (item.quantity_to_refund || 0)), 0
+    );
 
     const handleProcessRefund = async () => {
         if (!orderId || refundItems.length === 0) return;
         if (!refundReason.trim()) {
-            alert('Please enter a refund reason');
+            showToast('warning', 'Please enter a refund reason');
             return;
         }
-        if (!confirm('Process this refund? Stock will be restored for items marked as returned.')) return;
+        if (!confirm(`Process refund of RM ${refundTotal.toFixed(2)}? Stock will be restored for marked items.`)) return;
 
         setUpdating(true);
-        try {
-            const itemsToRefund = refundItems
-                .filter((item: any) => item.quantity_to_refund > 0)
-                .map((item: any) => ({
-                    product_id: item.product_id,
-                    product_name: item.product_name,
-                    sku: item.sku,
-                    variant_sku: item.variant_sku,
-                    selected_options: item.selected_options,
-                    quantity: item.quantity_to_refund,
-                    return_to_stock: item.return_to_stock
-                }));
+        const itemsToRefund = refundItems
+            .filter(i => i.quantity_to_refund > 0)
+            .map(i => ({
+                product_id: i.product_id,
+                product_name: i.product_name,
+                sku: i.sku,
+                variant_sku: i.variant_sku,
+                selected_options: i.selected_options,
+                quantity: i.quantity_to_refund,
+                return_to_stock: i.return_to_stock
+            }));
 
-            const result = await processRefund(
-                orderId,
-                itemsToRefund,
-                refundReason,
-                itemsToRefund.reduce((sum: number, i: any) => sum + i.quantity, 0) === order.items.length ? 'FULL' : 'PARTIAL'
-            );
+        const totalQtyRefunded = itemsToRefund.reduce((s, i) => s + i.quantity, 0);
+        const totalQtyOriginal = (order.items || []).reduce((s: number, i: any) => s + i.quantity, 0);
 
-            if (result.success) {
-                alert('Refund processed successfully');
-                setShowRefundModal(false);
-                await loadOrder(orderId);
-            } else {
-                alert('Failed to process refund: ' + result.error);
-            }
-        } catch (error) {
-            alert('Error processing refund: ' + error);
+        const result = await processRefund(
+            orderId,
+            itemsToRefund,
+            refundReason,
+            totalQtyRefunded >= totalQtyOriginal ? 'FULL' : 'PARTIAL'
+        );
+
+        if (result.success) {
+            showToast('success', `Refund of RM ${refundTotal.toFixed(2)} processed`);
+            setShowRefundModal(false);
+            setRefundReason('');
+            await loadOrder(orderId);
+        } else {
+            showToast('error', 'Refund failed: ' + result.error);
         }
         setUpdating(false);
     };
 
-    if (loading) {
-        return (
-            <div className="max-w-4xl mx-auto py-20 text-center text-gray-400">
-                Loading order...
-            </div>
-        );
-    }
-
-    if (!order) {
-        return (
-            <div className="max-w-4xl mx-auto py-20 text-center">
-                <p className="text-red-400 text-xl mb-4">Order not found</p>
-                <Link href="/admin/orders" className="text-rudark-volt hover:underline">
-                    ← Back to Orders
-                </Link>
-            </div>
-        );
-    }
-
     const formatDate = (dateStr: string) => {
         if (!dateStr) return '-';
         return new Date(dateStr).toLocaleDateString('en-MY', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
         });
     };
+
+    if (loading) return (
+        <div className="max-w-4xl mx-auto py-20 text-center text-gray-400">Loading order...</div>
+    );
+
+    if (!order) return (
+        <div className="max-w-4xl mx-auto py-20 text-center">
+            <p className="text-red-500 text-lg mb-4">Order not found</p>
+            <Link href="/admin/orders" className="text-blue-600 hover:underline">← Back to Orders</Link>
+        </div>
+    );
+
+    const loyverseFailed = order.loyverse_status === 'FAILED' || order.loyverse_sync_error;
+    const shipmentFailed = order.parcelasia_error;
 
     return (
         <div className="max-w-5xl mx-auto pb-20">
             {/* Header */}
-            <div className="flex justify-between items-start border-b border-rudark-grey pb-6 mb-8">
+            <div className="flex justify-between items-start mb-6">
                 <div>
-                    <Link href="/admin/orders" className="flex items-center gap-2 text-gray-400 hover:text-white mb-4 text-sm">
-                        <ArrowLeft size={16} />
-                        Back to Orders
+                    <Link href="/admin/orders" className="flex items-center gap-1.5 text-gray-400 hover:text-gray-600 mb-3 text-sm">
+                        <ArrowLeft size={15} /> Back to Orders
                     </Link>
-                    <h1 className="text-3xl font-condensed font-bold text-white uppercase">
-                        Order <span className="text-rudark-volt">{order.id}</span>
-                    </h1>
-                    <p className="text-gray-400 text-sm mt-1">{formatDate(order.created_at)}</p>
+                    <h1 className="text-xl font-bold text-gray-900">Order <span className="font-mono text-gray-600">{order.id}</span></h1>
+                    <p className="text-gray-400 text-sm mt-0.5">{formatDate(order.created_at)}</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                     {['PAID', 'PROCESSING', 'READY_TO_SHIP', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(order.status) && (
                         <button
                             onClick={handleOpenRefund}
                             disabled={updating}
-                            className="flex items-center gap-2 px-4 py-2 border border-orange-500/50 text-orange-400 hover:border-orange-400 hover:text-orange-300 transition-colors rounded-sm disabled:opacity-50"
+                            className="flex items-center gap-1.5 px-3 py-2 border border-orange-200 text-orange-600 rounded text-sm hover:bg-orange-50 disabled:opacity-50"
                         >
-                            <RotateCcw size={16} />
-                            Refund
+                            <RotateCcw size={14} /> Refund
                         </button>
                     )}
                     <button
                         onClick={handleReprocess}
                         disabled={updating}
-                        className="flex items-center gap-2 px-4 py-2 border border-rudark-grey text-gray-300 hover:border-rudark-volt hover:text-rudark-volt transition-colors rounded-sm disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 text-gray-600 rounded text-sm hover:bg-gray-50 disabled:opacity-50"
                     >
-                        <RefreshCw size={16} className={updating ? 'animate-spin' : ''} />
-                        Reprocess
+                        <RefreshCw size={14} className={updating ? 'animate-spin' : ''} /> Reprocess
                     </button>
                 </div>
             </div>
 
+            {/* Sync failure banners */}
+            {loyverseFailed && (
+                <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg mb-4">
+                    <AlertTriangle size={16} className="text-red-500 mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                        <p className="text-sm font-medium text-red-700">Loyverse inventory sync failed</p>
+                        <p className="text-xs text-red-500 mt-0.5">{order.loyverse_sync_error || 'Unknown error'} — stock may not have been deducted in POS.</p>
+                    </div>
+                    <button onClick={handleReprocess} disabled={updating} className="text-xs bg-red-100 text-red-700 px-3 py-1.5 rounded hover:bg-red-200 disabled:opacity-50 shrink-0">
+                        Retry Sync
+                    </button>
+                </div>
+            )}
+            {shipmentFailed && (
+                <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg mb-4">
+                    <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                        <p className="text-sm font-medium text-amber-700">ParcelAsia shipment creation failed</p>
+                        <p className="text-xs text-amber-500 mt-0.5">{order.parcelasia_error}</p>
+                    </div>
+                    <button onClick={handleReprocess} disabled={updating} className="text-xs bg-amber-100 text-amber-700 px-3 py-1.5 rounded hover:bg-amber-200 disabled:opacity-50 shrink-0">
+                        Retry
+                    </button>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Main Info */}
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Status Card */}
-                    <div className="bg-rudark-carbon p-6 border border-rudark-grey rounded-sm">
-                        <h2 className="text-lg font-bold text-white uppercase mb-4">Order Status</h2>
+                {/* Main column */}
+                <div className="lg:col-span-2 space-y-4">
+                    {/* Status */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                        <h2 className="text-sm font-semibold text-gray-700 mb-3">Order Status</h2>
                         <div className="flex flex-wrap gap-2">
                             {STATUS_OPTIONS.map(opt => (
                                 <button
                                     key={opt.value}
                                     onClick={() => handleStatusChange(opt.value)}
-                                    disabled={updating}
-                                    className={`px-4 py-2 rounded-sm border font-bold text-sm uppercase transition-all ${order.status === opt.value
-                                        ? 'bg-rudark-volt text-black border-rudark-volt'
-                                        : 'border-rudark-grey text-gray-400 hover:border-gray-500 hover:text-white'
-                                        }`}
+                                    disabled={updating || opt.value === order.status}
+                                    className={`px-3 py-1.5 rounded border text-sm font-medium transition-all ${
+                                        order.status === opt.value
+                                            ? 'bg-blue-600 text-white border-blue-600'
+                                            : 'border-gray-200 text-gray-600 hover:border-gray-400 hover:text-gray-900 disabled:opacity-50'
+                                    }`}
                                 >
                                     {opt.label}
+                                    {IRREVERSIBLE_STATUSES.has(opt.value) && opt.value !== order.status && (
+                                        <span className="ml-1 text-gray-300 text-xs">⚠</span>
+                                    )}
                                 </button>
                             ))}
                         </div>
                         {order.payment_status && (
-                            <div className="mt-4 text-sm">
-                                <span className="text-gray-500">Payment: </span>
-                                <span className={order.payment_status === 'paid' ? 'text-green-400' : 'text-yellow-400'}>
-                                    {order.payment_status.toUpperCase()}
-                                </span>
+                            <div className="mt-3 text-xs text-gray-400">
+                                Payment: <span className={order.payment_status === 'paid' ? 'text-green-600 font-medium' : 'text-amber-600 font-medium'}>{order.payment_status.toUpperCase()}</span>
                             </div>
                         )}
                     </div>
 
                     {/* Items */}
-                    <div className="bg-rudark-carbon p-6 border border-rudark-grey rounded-sm">
-                        <h2 className="text-lg font-bold text-white uppercase mb-4">Order Items</h2>
-                        <div className="space-y-3">
-                            {(order.items || []).map((item: any, index: number) => (
-                                <div key={index} className="flex justify-between items-center py-3 border-b border-rudark-grey/30 last:border-0">
+                    <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                        <h2 className="text-sm font-semibold text-gray-700 mb-3">Items ({(order.items || []).length})</h2>
+                        <div className="divide-y divide-gray-50">
+                            {(order.items || []).map((item: any, i: number) => (
+                                <div key={i} className="flex justify-between items-center py-3">
                                     <div>
-                                        <div className="text-white font-medium">{item.name}</div>
-                                        <div className="text-gray-500 text-xs font-mono">SKU: {item.sku}</div>
+                                        <div className="text-sm font-medium text-gray-900">{item.name}</div>
+                                        <div className="text-xs text-gray-400 font-mono mt-0.5">SKU: {item.sku}</div>
                                         {item.selected_options && Object.keys(item.selected_options).length > 0 && (
-                                            <div className="text-gray-400 text-xs mt-1">
-                                                {Object.entries(item.selected_options).map(([k, v]) => `${k}: ${v}`).join(', ')}
+                                            <div className="text-xs text-gray-400 mt-0.5">
+                                                {Object.entries(item.selected_options).map(([k, v]) => `${k}: ${v}`).join(' · ')}
                                             </div>
                                         )}
                                     </div>
                                     <div className="text-right">
-                                        <div className="text-white">x{item.quantity}</div>
-                                        <div className="text-rudark-volt font-mono">RM {(item.web_price * item.quantity).toFixed(2)}</div>
+                                        <div className="text-xs text-gray-400">×{item.quantity}</div>
+                                        <div className="text-sm font-semibold text-gray-900">RM {(item.web_price * item.quantity).toFixed(2)}</div>
                                     </div>
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    {/* Shipping Info */}
-                    <div className="bg-rudark-carbon p-6 border border-rudark-grey rounded-sm">
-                        <h2 className="text-lg font-bold text-white uppercase mb-4">
-                            {order.delivery_method === 'self_collection' ? 'Collection Info' : 'Shipping Info'}
+                    {/* Shipping */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                        <h2 className="text-sm font-semibold text-gray-700 mb-3">
+                            {order.delivery_method === 'self_collection' ? 'Collection' : 'Shipping'}
                         </h2>
-
                         {order.delivery_method === 'self_collection' ? (
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2 text-blue-400">
-                                    <MapPin size={18} />
-                                    <span className="font-bold">Self-Collection</span>
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-2 text-blue-600 text-sm font-medium">
+                                    <MapPin size={14} /> Self-Collection
                                 </div>
-                                <div className="text-gray-300">{order.collection_point_name}</div>
-                                <div className="text-gray-500 text-sm">{order.collection_point_address}</div>
-                                <div className="text-rudark-volt mt-2">Fee: RM {(order.collection_fee || 0).toFixed(2)}</div>
+                                <div className="text-sm text-gray-700">{order.collection_point_name}</div>
+                                <div className="text-xs text-gray-400">{order.collection_point_address}</div>
+                                <div className="text-sm text-gray-600 mt-1">Fee: RM {(order.collection_fee || 0).toFixed(2)}</div>
                             </div>
                         ) : (
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2 text-purple-400">
-                                    <Truck size={18} />
-                                    <span className="font-bold">Delivery</span>
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2 text-sm text-gray-700">
+                                    <Truck size={14} className="text-gray-400" />
+                                    {order.shipping_provider || 'Standard'} · {order.shipping_service || 'Express'} · RM {(order.shipping_cost || 0).toFixed(2)}
                                 </div>
-                                <div className="text-gray-300">{order.shipping_provider || 'Standard'} - {order.shipping_service || 'Express'}</div>
-                                <div className="text-gray-500 text-sm">Shipping Cost: RM {(order.shipping_cost || 0).toFixed(2)}</div>
-
-                                {/* Tracking Info */}
-                                <div className="mt-3 p-3 bg-rudark-matte rounded">
+                                <div className="p-3 bg-gray-50 rounded border border-gray-100">
                                     {order.tracking_no && order.tracking_no !== 'N/A' ? (
-                                        <>
-                                            <div className="text-xs text-gray-500 uppercase">Tracking Number</div>
-                                            <div className="text-rudark-volt font-mono font-bold text-lg">{order.tracking_no}</div>
-                                            <a
-                                                href={`https://www.tracking.my/jnt/${order.tracking_no}`}
-                                                target="_blank"
-                                                rel="noopener"
-                                                className="text-xs text-blue-400 hover:underline"
-                                            >
-                                                Track Package →
+                                        <div>
+                                            <div className="text-xs text-gray-400 uppercase mb-1">Tracking Number</div>
+                                            <div className="font-mono font-bold text-gray-900 text-lg">{order.tracking_no}</div>
+                                            <a href={`https://www.tracking.my/jnt/${order.tracking_no}`} target="_blank" rel="noopener"
+                                                className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-1">
+                                                Track package <ExternalLink size={11} />
                                             </a>
-                                        </>
+                                        </div>
                                     ) : order.parcelasia_shipment_id ? (
-                                        <>
-                                            <div className="text-xs text-yellow-500 uppercase">⏳ Awaiting Tracking</div>
-                                            <div className="text-gray-400 text-sm mt-1">
-                                                Tracking number will be available once parcel is picked up by courier.
-                                            </div>
-                                            <div className="text-xs text-gray-600 font-mono mt-2">
-                                                Shipment ID: {order.parcelasia_shipment_id.substring(0, 12)}...
-                                            </div>
-                                        </>
+                                        <div>
+                                            <div className="text-xs text-amber-600 font-medium">⏳ Awaiting tracking number</div>
+                                            <div className="text-xs text-gray-400 mt-1">Will be available once courier picks up the parcel.</div>
+                                            <div className="text-xs text-gray-300 font-mono mt-1">Shipment ID: {order.parcelasia_shipment_id.slice(0, 12)}…</div>
+                                        </div>
                                     ) : (
-                                        <div className="text-gray-500 text-sm">No tracking available</div>
+                                        <div className="text-xs text-gray-400">No tracking available</div>
                                     )}
                                 </div>
-
-                                {/* WhatsApp Button */}
                                 {order.tracking_no && order.customer?.phone && (
                                     <button
                                         onClick={async () => {
-                                            const items = (order.items || []).map((item: any) => ({
-                                                name: item.name,
-                                                quantity: item.quantity
-                                            }));
-                                            const url = await generateWhatsAppLink(
-                                                order.customer.phone,
-                                                orderId,
-                                                order.tracking_no,
-                                                order.customer.name,
-                                                items,
-                                                "Rud'Ark ProShop"
-                                            );
+                                            const items = (order.items || []).map((i: any) => ({ name: i.name, quantity: i.quantity }));
+                                            const url = await generateWhatsAppLink(order.customer.phone, orderId, order.tracking_no, order.customer.name, items, "Rud'Ark ProShop");
                                             window.open(url, '_blank');
                                         }}
-                                        className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors"
+                                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700"
                                     >
-                                        💬 Send WhatsApp
+                                        💬 Send WhatsApp Tracking
                                     </button>
                                 )}
                             </div>
@@ -342,88 +333,90 @@ export default function OrderDetailPage({ params }: PageParams) {
                 </div>
 
                 {/* Sidebar */}
-                <div className="space-y-6">
-                    {/* Customer */}
-                    <div className="bg-rudark-carbon p-6 border border-rudark-grey rounded-sm">
-                        <h2 className="text-lg font-bold text-white uppercase mb-4">Customer</h2>
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-3">
-                                <User size={18} className="text-gray-500" />
-                                <span className="text-white">{order.customer?.name}</span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <Mail size={18} className="text-gray-500" />
-                                <span className="text-gray-300">{order.customer?.email}</span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <Phone size={18} className="text-gray-500" />
-                                <span className="text-gray-300">{order.customer?.phone}</span>
-                            </div>
+                <div className="space-y-4">
+                    <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                        <h2 className="text-sm font-semibold text-gray-700 mb-3">Customer</h2>
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-sm text-gray-900"><User size={14} className="text-gray-400" />{order.customer?.name}</div>
+                            <div className="flex items-center gap-2 text-sm text-gray-500"><Mail size={14} className="text-gray-300" />{order.customer?.email}</div>
+                            <div className="flex items-center gap-2 text-sm text-gray-500"><Phone size={14} className="text-gray-300" />{order.customer?.phone}</div>
                         </div>
                         {order.customer?.address && (
-                            <div className="mt-4 pt-4 border-t border-rudark-grey/30">
-                                <div className="text-xs text-gray-500 uppercase mb-2">Shipping Address</div>
-                                <div className="text-gray-300 text-sm">{order.customer.address}</div>
-                                <div className="text-gray-400 text-sm">{order.customer.postcode} {order.customer.city}</div>
-                                <div className="text-gray-400 text-sm">{order.customer.state}</div>
+                            <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 leading-5">
+                                <div className="font-medium text-gray-600 mb-1">Shipping Address</div>
+                                {order.customer.address}<br />
+                                {order.customer.postcode} {order.customer.city}<br />
+                                {order.customer.state}
                             </div>
                         )}
                     </div>
 
-                    {/* Summary */}
-                    <div className="bg-rudark-carbon p-6 border border-rudark-grey rounded-sm">
-                        <h2 className="text-lg font-bold text-white uppercase mb-4">Summary</h2>
-                        <div className="space-y-2">
-                            <div className="flex justify-between">
-                                <span className="text-gray-400">Subtotal</span>
-                                <span className="text-white font-mono">RM {(order.subtotal || 0).toFixed(2)}</span>
+                    <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                        <h2 className="text-sm font-semibold text-gray-700 mb-3">Order Summary</h2>
+                        <div className="space-y-2 text-sm">
+                            <div className="flex justify-between text-gray-500">
+                                <span>Subtotal</span>
+                                <span>RM {(order.subtotal || order.total_amount || 0).toFixed(2)}</span>
                             </div>
-                            <div className="flex justify-between">
-                                <span className="text-gray-400">Shipping</span>
-                                <span className="text-white font-mono">RM {(order.shipping_cost || 0).toFixed(2)}</span>
+                            <div className="flex justify-between text-gray-500">
+                                <span>Shipping</span>
+                                <span>RM {(order.shipping_cost || 0).toFixed(2)}</span>
                             </div>
                             {order.discount_amount > 0 && (
-                                <div className="flex justify-between">
-                                    <span className="text-gray-400">Discount</span>
-                                    <span className="text-green-400 font-mono">-RM {order.discount_amount.toFixed(2)}</span>
-                                </div>
+                                <div className="flex justify-between text-green-600"><span>Discount</span><span>−RM {order.discount_amount.toFixed(2)}</span></div>
                             )}
-                            <div className="flex justify-between pt-3 border-t border-rudark-grey">
-                                <span className="text-white font-bold">Total</span>
-                                <span className="text-rudark-volt font-mono font-bold text-xl">RM {(order.total_amount || 0).toFixed(2)}</span>
+                            <div className="flex justify-between font-bold text-gray-900 border-t border-gray-100 pt-2 mt-2 text-base">
+                                <span>Total</span><span>RM {(order.total_amount || 0).toFixed(2)}</span>
                             </div>
                         </div>
                     </div>
 
-                    {/* Technical Info */}
-                    <div className="bg-rudark-carbon p-6 border border-rudark-grey rounded-sm">
-                        <h2 className="text-lg font-bold text-white uppercase mb-4">System Info</h2>
-                        <div className="space-y-2 text-xs font-mono">
-                            <div className="flex justify-between items-center">
-                                <span className="text-gray-500">Loyverse</span>
-                                <div className="flex items-center gap-2">
-                                    <span className={order.loyverse_status === 'SYNCED' ? 'text-green-400' : 'text-yellow-400'}>
-                                        {order.loyverse_status || 'PENDING'}
-                                    </span>
-                                    {order.loyverse_status === 'FAILED' && (
-                                        <button
-                                            onClick={handleReprocess}
-                                            className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded hover:bg-red-500/30"
-                                            title="Retry Sync"
-                                        >
-                                            Retry
-                                        </button>
-                                    )}
-                                </div>
+                    {/* Status Timeline */}
+                    {order.status_history && order.status_history.length > 0 && (
+                        <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                            <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
+                                <Clock size={14} className="text-gray-400" /> Status Timeline
+                            </h2>
+                            <ol className="relative border-l border-gray-200 ml-2 space-y-3">
+                                {[...order.status_history].reverse().map((entry: any, i: number) => (
+                                    <li key={i} className="ml-4">
+                                        <div className="absolute -left-1.5 w-3 h-3 rounded-full border-2 border-white bg-blue-400" style={{ top: `${i * 52 + 4}px` }} />
+                                        <p className="text-xs font-semibold text-gray-800">{entry.status}</p>
+                                        <p className="text-[10px] text-gray-400 mt-0.5">
+                                            {entry.timestamp
+                                                ? new Date(entry.timestamp).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                                : '—'}
+                                        </p>
+                                        {entry.tracking_no && (
+                                            <p className="text-[10px] text-blue-500 font-mono mt-0.5">{entry.tracking_no}</p>
+                                        )}
+                                    </li>
+                                ))}
+                            </ol>
+                        </div>
+                    )}
+
+                    <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                        <h2 className="text-sm font-semibold text-gray-700 mb-3">System Info</h2>
+                        <div className="space-y-1.5 text-xs">
+                            <div className="flex justify-between">
+                                <span className="text-gray-400">Loyverse</span>
+                                <span className={`font-medium ${order.loyverse_status === 'SYNCED' || order.type === 'POS' ? 'text-green-600' : order.loyverse_status === 'FAILED' ? 'text-red-600' : 'text-amber-500'}`}>
+                                    {order.type === 'POS' ? 'SYNCED' : (order.loyverse_status || 'PENDING')}
+                                </span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-gray-500">Gateway</span>
-                                <span className="text-gray-300">{order.payment_gateway || 'chip'}</span>
+                                <span className="text-gray-400">Gateway</span>
+                                <span className="text-gray-700 uppercase font-medium">{order.type === 'POS' ? 'Loyverse POS' : (order.payment_gateway || 'chip')}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-400">Method</span>
+                                <span className="text-gray-700 font-medium">{order.payment_method || '—'}</span>
                             </div>
                             {order.chip_payment_data?.purchase_id && (
                                 <div className="flex justify-between">
-                                    <span className="text-gray-500">Purchase ID</span>
-                                    <span className="text-gray-300 truncate max-w-[120px]">{order.chip_payment_data.purchase_id}</span>
+                                    <span className="text-gray-400">Purchase ID</span>
+                                    <span className="text-gray-600 font-mono truncate max-w-[120px]">{order.chip_payment_data.purchase_id}</span>
                                 </div>
                             )}
                         </div>
@@ -433,101 +426,87 @@ export default function OrderDetailPage({ params }: PageParams) {
 
             {/* Refund Modal */}
             {showRefundModal && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-                    <div className="bg-rudark-carbon border border-rudark-grey rounded-sm max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                        <div className="flex justify-between items-center p-4 border-b border-rudark-grey">
-                            <h2 className="text-xl font-bold text-white uppercase">Process Refund</h2>
-                            <button onClick={() => setShowRefundModal(false)} className="text-gray-400 hover:text-white">
-                                <X size={24} />
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
+                        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
+                            <h2 className="text-lg font-bold text-gray-900">Process Refund</h2>
+                            <button onClick={() => setShowRefundModal(false)} className="text-gray-400 hover:text-gray-600">
+                                <X size={20} />
                             </button>
                         </div>
 
-                        <div className="p-4 space-y-4">
-                            {/* Refund Items */}
-                            <div className="space-y-3">
-                                {refundItems.map((item: any, index: number) => (
-                                    <div key={index} className="bg-rudark-matte p-4 rounded-sm">
-                                        <div className="flex justify-between items-start mb-3">
-                                            <div>
-                                                <div className="text-white font-medium">{item.product_name}</div>
-                                                {item.selected_options && Object.keys(item.selected_options).length > 0 && (
-                                                    <div className="text-gray-400 text-xs mt-1">
-                                                        {Object.entries(item.selected_options).map(([k, v]) => `${k}: ${v}`).join(', ')}
-                                                    </div>
-                                                )}
-                                                <div className="text-gray-500 text-xs">
-                                                    Max refundable: {item.refundable_quantity} of {item.original_quantity}
+                        <div className="p-6 space-y-4">
+                            {refundItems.map((item, index) => (
+                                <div key={index} className="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div>
+                                            <div className="text-sm font-medium text-gray-900">{item.product_name}</div>
+                                            {item.selected_options && Object.keys(item.selected_options).length > 0 && (
+                                                <div className="text-xs text-gray-400 mt-0.5">
+                                                    {Object.entries(item.selected_options).map(([k, v]) => `${k}: ${v}`).join(' · ')}
                                                 </div>
-                                            </div>
-                                            <div className="text-rudark-volt font-mono">
-                                                RM {(item.price * item.quantity_to_refund).toFixed(2)}
-                                            </div>
+                                            )}
+                                            <div className="text-xs text-gray-400 mt-0.5">Max refundable: {item.refundable_quantity} of {item.original_quantity}</div>
                                         </div>
-
-                                        <div className="flex items-center gap-4">
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-gray-400 text-sm">Qty:</label>
-                                                <input
-                                                    type="number"
-                                                    min={0}
-                                                    max={item.refundable_quantity}
-                                                    value={item.quantity_to_refund}
-                                                    onChange={(e) => {
-                                                        const newItems = [...refundItems];
-                                                        newItems[index].quantity_to_refund = Math.min(
-                                                            parseInt(e.target.value) || 0,
-                                                            item.refundable_quantity
-                                                        );
-                                                        setRefundItems(newItems);
-                                                    }}
-                                                    className="w-16 bg-rudark-carbon border border-rudark-grey text-white text-center py-1 rounded-sm"
-                                                />
-                                            </div>
-
-                                            <label className="flex items-center gap-2 text-sm">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={item.return_to_stock}
-                                                    onChange={(e) => {
-                                                        const newItems = [...refundItems];
-                                                        newItems[index].return_to_stock = e.target.checked;
-                                                        setRefundItems(newItems);
-                                                    }}
-                                                    className="rounded"
-                                                />
-                                                <span className="text-gray-300">Return to stock</span>
-                                            </label>
-                                        </div>
+                                        <div className="text-sm font-semibold text-gray-900">RM {((item.price || 0) * (item.quantity_to_refund || 0)).toFixed(2)}</div>
                                     </div>
-                                ))}
-                            </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-xs text-gray-500">Qty:</label>
+                                            <input
+                                                type="number" min={0} max={item.refundable_quantity}
+                                                value={item.quantity_to_refund}
+                                                onChange={(e) => {
+                                                    const n = [...refundItems];
+                                                    n[index].quantity_to_refund = Math.min(parseInt(e.target.value) || 0, item.refundable_quantity);
+                                                    setRefundItems(n);
+                                                }}
+                                                className="w-16 border border-gray-200 rounded px-2 py-1 text-center text-sm focus:outline-none focus:border-blue-400"
+                                            />
+                                        </div>
+                                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                            <input
+                                                type="checkbox" checked={item.return_to_stock}
+                                                onChange={(e) => {
+                                                    const n = [...refundItems];
+                                                    n[index].return_to_stock = e.target.checked;
+                                                    setRefundItems(n);
+                                                }}
+                                                className="rounded"
+                                            />
+                                            <span className="text-gray-600 text-sm">Return to stock</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            ))}
 
-                            {/* Reason */}
                             <div>
-                                <label className="block text-gray-400 text-sm mb-2">Refund Reason *</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Reason <span className="text-red-500">*</span></label>
                                 <textarea
                                     value={refundReason}
                                     onChange={(e) => setRefundReason(e.target.value)}
-                                    placeholder="Enter reason for refund..."
-                                    className="w-full bg-rudark-matte border border-rudark-grey text-white p-3 rounded-sm"
+                                    placeholder="Reason for refund..."
+                                    className="w-full border border-gray-200 rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-blue-400"
                                     rows={3}
                                 />
                             </div>
 
-                            {/* Actions */}
-                            <div className="flex justify-end gap-3 pt-4 border-t border-rudark-grey">
-                                <button
-                                    onClick={() => setShowRefundModal(false)}
-                                    className="px-4 py-2 border border-rudark-grey text-gray-300 hover:text-white rounded-sm"
-                                >
+                            {/* Refund total */}
+                            <div className="flex justify-between items-center p-3 bg-orange-50 border border-orange-100 rounded-lg">
+                                <span className="text-sm font-medium text-orange-700">Refund Amount</span>
+                                <span className="text-lg font-bold text-orange-700">RM {refundTotal.toFixed(2)}</span>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button onClick={() => setShowRefundModal(false)} className="px-4 py-2 border border-gray-200 text-gray-600 rounded text-sm hover:bg-gray-50">
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleProcessRefund}
-                                    disabled={updating || !refundReason.trim()}
-                                    className="px-6 py-2 bg-orange-500 text-white font-bold rounded-sm hover:bg-orange-400 disabled:opacity-50"
+                                    disabled={updating || !refundReason.trim() || refundTotal === 0}
+                                    className="px-6 py-2 bg-orange-500 text-white font-medium rounded text-sm hover:bg-orange-600 disabled:opacity-50"
                                 >
-                                    {updating ? 'Processing...' : 'Process Refund'}
+                                    {updating ? 'Processing…' : `Refund RM ${refundTotal.toFixed(2)}`}
                                 </button>
                             </div>
                         </div>

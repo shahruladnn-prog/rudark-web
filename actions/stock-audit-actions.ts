@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -28,7 +29,11 @@ export async function createAudit(data: {
     store_name?: string;
     product_ids: string[];
     notes?: string;
-}): Promise<{ success: boolean; auditId?: string; error?: string }> {
+}): Promise<{
+
+ success: boolean; auditId?: string; error?: string }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         if (!data.product_ids || data.product_ids.length === 0) {
             return { success: false, error: 'Select at least one product to audit' };
@@ -103,7 +108,11 @@ export async function updateAuditCount(
     auditId: string,
     itemIndex: number,
     countedQuantity: number
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const docRef = adminDb.collection('stock_audits').doc(auditId);
         const doc = await docRef.get();
@@ -152,7 +161,11 @@ export async function updateAuditCount(
 /**
  * Move audit to reviewing status
  */
-export async function submitAuditForReview(auditId: string): Promise<{ success: boolean; error?: string }> {
+export async function submitAuditForReview(auditId: string): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const docRef = adminDb.collection('stock_audits').doc(auditId);
         const doc = await docRef.get();
@@ -186,7 +199,11 @@ export async function submitAuditForReview(auditId: string): Promise<{ success: 
 /**
  * Apply audit adjustments (create stock movements for discrepancies)
  */
-export async function applyAuditAdjustments(auditId: string): Promise<{ success: boolean; applied: number; error?: string }> {
+export async function applyAuditAdjustments(auditId: string): Promise<{
+
+ success: boolean; applied: number; error?: string }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const docRef = adminDb.collection('stock_audits').doc(auditId);
         const doc = await docRef.get();
@@ -250,7 +267,11 @@ export async function applyAuditAdjustments(auditId: string): Promise<{ success:
 /**
  * Cancel an audit
  */
-export async function cancelAudit(auditId: string): Promise<{ success: boolean; error?: string }> {
+export async function cancelAudit(auditId: string): Promise<{
+
+ success: boolean; error?: string }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const docRef = adminDb.collection('stock_audits').doc(auditId);
         const doc = await docRef.get();
@@ -286,6 +307,8 @@ export async function getAudits(options: {
     status?: AuditStatus;
     limit?: number;
 } = {}): Promise<StockAudit[]> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const { status, limit = MAX_AUDITS_QUERY } = options;
 
@@ -316,6 +339,8 @@ export async function getAudits(options: {
  * Get a single audit by ID
  */
 export async function getAuditById(auditId: string): Promise<StockAudit | null> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const doc = await adminDb.collection('stock_audits').doc(auditId).get();
 

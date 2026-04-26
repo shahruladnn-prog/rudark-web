@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 
@@ -7,10 +8,14 @@ import { adminDb } from '@/lib/firebase-admin';
  * WARNING: This is destructive and irreversible!
  */
 export async function deleteAllOrders(): Promise<{
+
     success: boolean;
     deleted: number;
     error?: string;
 }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
+
     try {
         console.log('[Cleanup] Starting deletion of all orders...');
 
@@ -58,10 +63,14 @@ export async function deleteAllOrders(): Promise<{
  * Call this after deleting orders to reset reservation counts
  */
 export async function resetReservedStock(): Promise<{
+
     success: boolean;
     updated: number;
     error?: string;
 }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
+
     try {
         console.log('[Cleanup] Resetting reserved stock quantities...');
 

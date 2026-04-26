@@ -1,6 +1,6 @@
 'use server';
-
 import { adminDb } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { loyverse } from '@/lib/loyverse';
 import { createShipment } from './shipping-actions';
 // deductLoyverseStock removed - receipt creation auto-deducts Loyverse stock
@@ -32,6 +32,24 @@ export async function processSuccessfulOrder(orderId: string) {
             updated_at: new Date(),
             payment_method: 'CHIP'
         };
+
+        // Increment Promo Usage Count if applicable
+        if (order.promo_code) {
+            try {
+                const promoQuery = await adminDb.collection('promos')
+                    .where('code', '==', order.promo_code)
+                    .limit(1)
+                    .get();
+                if (!promoQuery.empty) {
+                    await promoQuery.docs[0].ref.update({
+                        usage_count: FieldValue.increment(1)
+                    });
+                    console.log(`[Order Processing] Incremented promo usage for ${order.promo_code}`);
+                }
+            } catch (promoErr) {
+                console.error(`[Order Processing] Failed to increment promo usage:`, promoErr);
+            }
+        }
 
         // 1. DEDUCT STOCK (converts reserved → actual deduction)
         // IDEMPOTENCY CHECK: Prevent double deduction

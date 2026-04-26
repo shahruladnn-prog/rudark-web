@@ -1,366 +1,167 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import {
-    getOrdersNeedingSync,
-    batchSyncTracking,
-    syncOrderTracking
-} from '@/actions/parcelasia-sync';
-
-interface OrderToSync {
-    id: string;
-    parcelasia_shipment_id: string;
-    customer_name: string;
-    created_at: string;
-}
-
-interface SyncResult {
-    success: boolean;
-    orderId: string;
-    tracking_no?: string;
-    error?: string;
-}
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { 
+    RefreshCw, ChevronLeft, Calendar, 
+    CheckCircle, AlertCircle, ShoppingBag, 
+    Layers, Loader2, ArrowRight
+} from 'lucide-react';
+import { syncLoyverseReceipts } from '@/actions/admin-sync';
+import { useToast } from '@/components/ui/toast';
 
 export default function BatchSyncPage() {
-    const [orders, setOrders] = useState<OrderToSync[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [syncing, setSyncing] = useState(false);
-    const [results, setResults] = useState<SyncResult[]>([]);
-    const [error, setError] = useState<string | null>(null);
+    const router = useRouter();
+    const { showToast } = useToast();
+    const [loading, setLoading] = useState(false);
+    const [period, setPeriod] = useState(1); // Default 1 day
+    const [result, setResult] = useState<{
+        receipts_processed: number;
+        items_deducted: number;
+        errors: string[];
+    } | null>(null);
 
-    // Load orders needing sync
-    useEffect(() => {
-        loadOrders();
-    }, []);
-
-    async function loadOrders() {
+    const handleSync = async () => {
         setLoading(true);
-        setError(null);
+        setResult(null);
         try {
-            const result = await getOrdersNeedingSync();
-            if (result.success) {
-                setOrders(result.orders);
+            const stats = await syncLoyverseReceipts(period);
+            setResult(stats);
+            if (stats.errors.length > 0) {
+                showToast('warning', `Sync completed with ${stats.errors.length} errors`);
             } else {
-                setError(result.error || 'Failed to load orders');
+                showToast('success', `Successfully synced ${stats.receipts_processed} receipts`);
             }
-        } catch (err: any) {
-            setError(err.message);
+        } catch (error: any) {
+            showToast('error', error.message || 'Sync failed');
         } finally {
             setLoading(false);
         }
-    }
-
-    async function handleBatchSync() {
-        if (!confirm(`Sync tracking for ${orders.length} orders?\n\nMake sure you have checked out these orders in MyParcelAsia portal first.`)) {
-            return;
-        }
-
-        setSyncing(true);
-        setResults([]);
-        setError(null);
-
-        try {
-            const result = await batchSyncTracking();
-            setResults(result.results);
-
-            // Reload orders to refresh the list
-            await loadOrders();
-
-            if (result.failed > 0) {
-                setError(`${result.failed} orders failed to sync. See details below.`);
-            }
-        } catch (err: any) {
-            setError(err.message);
-        } finally {
-            setSyncing(false);
-        }
-    }
-
-    async function handleSingleSync(orderId: string) {
-        setSyncing(true);
-        try {
-            const result = await syncOrderTracking(orderId);
-            setResults(prev => [result, ...prev.filter(r => r.orderId !== orderId)]);
-
-            if (result.success) {
-                // Remove from list
-                setOrders(prev => prev.filter(o => o.id !== orderId));
-            }
-        } catch (err: any) {
-            setResults(prev => [{
-                success: false,
-                orderId,
-                error: err.message
-            }, ...prev]);
-        } finally {
-            setSyncing(false);
-        }
-    }
-
-    const successCount = results.filter(r => r.success).length;
-    const failCount = results.filter(r => !r.success).length;
+    };
 
     return (
-        <div className="admin-container">
-            <div className="admin-header">
+        <div className="max-w-4xl mx-auto pb-20">
+            <div className="flex items-center gap-4 mb-8">
+                <button 
+                    onClick={() => router.back()} 
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500"
+                >
+                    <ChevronLeft size={20} />
+                </button>
                 <div>
-                    <Link href="/admin/orders" className="back-link">← Back to Orders</Link>
-                    <h1>Sync Tracking Numbers</h1>
-                    <p className="subtitle">
-                        Pull real tracking numbers from ParcelAsia after manual checkout
+                    <h1 className="text-2xl font-bold text-gray-900">POS Sales Synchronization</h1>
+                    <p className="text-gray-500 text-sm">Sync historical receipts from Loyverse to Firebase</p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <SyncPeriodCard 
+                    days={1} 
+                    label="Last 24 Hours" 
+                    selected={period === 1} 
+                    onClick={() => setPeriod(1)} 
+                />
+                <SyncPeriodCard 
+                    days={7} 
+                    label="Past 7 Days" 
+                    selected={period === 7} 
+                    onClick={() => setPeriod(7)} 
+                />
+                <SyncPeriodCard 
+                    days={30} 
+                    label="Past 30 Days" 
+                    selected={period === 30} 
+                    onClick={() => setPeriod(30)} 
+                />
+            </div>
+
+            <div className="bg-white border border-gray-200 rounded-lg p-8 shadow-sm text-center">
+                <div className="max-w-sm mx-auto">
+                    <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <RefreshCw size={32} className={loading ? 'animate-spin' : ''} />
+                    </div>
+                    
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">Ready to Synchronize?</h3>
+                    <p className="text-sm text-gray-500 mb-8">
+                        This will pull all receipts from Loyverse for the selected period. 
+                        Double entries are automatically prevented using idempotency keys.
                     </p>
+
+                    <button
+                        onClick={handleSync}
+                        disabled={loading}
+                        className="w-full bg-blue-600 text-white py-4 rounded-lg font-bold uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                    >
+                        {loading ? (
+                            <>
+                                <Loader2 size={20} className="animate-spin" />
+                                Processing Sync...
+                            </>
+                        ) : (
+                            <>
+                                <RefreshCw size={20} />
+                                Start Synchronization
+                            </>
+                        )}
+                    </button>
                 </div>
             </div>
 
-            {/* Instructions */}
-            <div className="info-box" style={{
-                background: 'rgba(59, 130, 246, 0.1)',
-                border: '1px solid rgba(59, 130, 246, 0.3)',
-                borderRadius: '8px',
-                padding: '16px',
-                marginBottom: '24px'
-            }}>
-                <h3 style={{ color: '#60A5FA', marginBottom: '8px' }}>📋 How to Use</h3>
-                <ol style={{ margin: 0, paddingLeft: '20px', lineHeight: '1.8' }}>
-                    <li>Checkout orders in <a href="https://app.myparcelasia.com" target="_blank" rel="noopener" style={{ color: '#60A5FA' }}>MyParcelAsia Portal</a></li>
-                    <li>Come back here and click <strong>Sync All</strong></li>
-                    <li>Real tracking numbers will be pulled from ParcelAsia</li>
-                </ol>
-            </div>
-
-            {/* Error Display */}
-            {error && (
-                <div className="error-box" style={{
-                    background: 'rgba(239, 68, 68, 0.1)',
-                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                    borderRadius: '8px',
-                    padding: '16px',
-                    marginBottom: '24px',
-                    color: '#F87171'
-                }}>
-                    ⚠️ {error}
-                </div>
-            )}
-
-            {/* Results Summary */}
-            {results.length > 0 && (
-                <div style={{
-                    display: 'flex',
-                    gap: '16px',
-                    marginBottom: '24px'
-                }}>
-                    <div style={{
-                        background: 'rgba(34, 197, 94, 0.1)',
-                        border: '1px solid rgba(34, 197, 94, 0.3)',
-                        borderRadius: '8px',
-                        padding: '16px',
-                        flex: 1,
-                        textAlign: 'center'
-                    }}>
-                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#22C55E' }}>{successCount}</div>
-                        <div style={{ color: '#86EFAC' }}>Synced</div>
-                    </div>
-                    <div style={{
-                        background: 'rgba(239, 68, 68, 0.1)',
-                        border: '1px solid rgba(239, 68, 68, 0.3)',
-                        borderRadius: '8px',
-                        padding: '16px',
-                        flex: 1,
-                        textAlign: 'center'
-                    }}>
-                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#EF4444' }}>{failCount}</div>
-                        <div style={{ color: '#FCA5A5' }}>Failed</div>
-                    </div>
-                </div>
-            )}
-
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-                <button
-                    onClick={handleBatchSync}
-                    disabled={syncing || orders.length === 0}
-                    className="btn-primary"
-                    style={{
-                        padding: '12px 24px',
-                        fontSize: '16px',
-                        opacity: syncing || orders.length === 0 ? 0.5 : 1
-                    }}
-                >
-                    {syncing ? '⏳ Syncing...' : `🔄 Sync All (${orders.length})`}
-                </button>
-                <button
-                    onClick={loadOrders}
-                    disabled={loading || syncing}
-                    className="btn-secondary"
-                    style={{ padding: '12px 24px' }}
-                >
-                    ↻ Refresh
-                </button>
-            </div>
-
-            {/* Orders List */}
-            <div className="card">
-                <h2 style={{ marginBottom: '16px' }}>Orders Needing Sync</h2>
-
-                {loading ? (
-                    <div style={{ textAlign: 'center', padding: '40px', color: '#888' }}>
-                        Loading orders...
-                    </div>
-                ) : orders.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '40px', color: '#888' }}>
-                        ✅ All orders are synced! No orders pending.
-                    </div>
-                ) : (
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>Order ID</th>
-                                <th>Customer</th>
-                                <th>Shipment ID</th>
-                                <th>Date</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {orders.map(order => {
-                                const result = results.find(r => r.orderId === order.id);
-                                return (
-                                    <tr key={order.id}>
-                                        <td>
-                                            <Link href={`/admin/orders/${order.id}`} style={{ color: '#60A5FA' }}>
-                                                {order.id}
-                                            </Link>
-                                        </td>
-                                        <td>{order.customer_name}</td>
-                                        <td style={{ fontFamily: 'monospace', fontSize: '12px' }}>
-                                            {order.parcelasia_shipment_id?.substring(0, 12)}...
-                                        </td>
-                                        <td>{new Date(order.created_at).toLocaleDateString()}</td>
-                                        <td>
-                                            {result ? (
-                                                result.success ? (
-                                                    <span style={{ color: '#22C55E' }}>
-                                                        ✅ {result.tracking_no}
-                                                    </span>
-                                                ) : (
-                                                    <span style={{ color: '#EF4444', fontSize: '12px' }}>
-                                                        ❌ {result.error}
-                                                    </span>
-                                                )
-                                            ) : (
-                                                <button
-                                                    onClick={() => handleSingleSync(order.id)}
-                                                    disabled={syncing}
-                                                    className="btn-small"
-                                                >
-                                                    Sync
-                                                </button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                )}
-            </div>
-
-            {/* Sync Results Log */}
-            {results.length > 0 && (
-                <div className="card" style={{ marginTop: '24px' }}>
-                    <h2 style={{ marginBottom: '16px' }}>Sync Results</h2>
-                    <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                        {results.map((result, idx) => (
-                            <div
-                                key={idx}
-                                style={{
-                                    padding: '8px 12px',
-                                    borderBottom: '1px solid rgba(255,255,255,0.1)',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center'
-                                }}
-                            >
-                                <span style={{ fontFamily: 'monospace' }}>{result.orderId}</span>
-                                {result.success ? (
-                                    <span style={{ color: '#22C55E' }}>
-                                        ✅ {result.tracking_no}
-                                    </span>
-                                ) : (
-                                    <span style={{ color: '#EF4444', fontSize: '12px' }}>
-                                        ❌ {result.error}
-                                    </span>
-                                )}
+            {result && (
+                <div className="mt-8 space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-green-50 border border-green-100 p-6 rounded-lg">
+                            <div className="flex items-center gap-3 text-green-700 mb-1">
+                                <CheckCircle size={18} />
+                                <span className="text-sm font-bold uppercase tracking-wider">Receipts Processed</span>
                             </div>
-                        ))}
+                            <div className="text-3xl font-black text-green-900">{result.receipts_processed}</div>
+                        </div>
+                        <div className="bg-blue-50 border border-blue-100 p-6 rounded-lg">
+                            <div className="flex items-center gap-3 text-blue-700 mb-1">
+                                <Layers size={18} />
+                                <span className="text-sm font-bold uppercase tracking-wider">Items Deducted</span>
+                            </div>
+                            <div className="text-3xl font-black text-blue-900">{result.items_deducted}</div>
+                        </div>
                     </div>
+
+                    {result.errors.length > 0 && (
+                        <div className="bg-red-50 border border-red-100 rounded-lg overflow-hidden">
+                            <div className="px-6 py-4 bg-red-100/50 border-b border-red-100 flex items-center gap-2 text-red-700">
+                                <AlertCircle size={18} />
+                                <span className="text-sm font-bold uppercase tracking-wider">Sync Errors ({result.errors.length})</span>
+                            </div>
+                            <div className="p-4 max-h-60 overflow-y-auto">
+                                <ul className="space-y-2">
+                                    {result.errors.map((err, i) => (
+                                        <li key={i} className="text-xs text-red-600 font-mono bg-white p-2 border border-red-50 rounded">
+                                            {err}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
-
-            <style jsx>{`
-                .btn-primary {
-                    background: linear-gradient(135deg, #22C55E, #16A34A);
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    font-weight: 600;
-                }
-                .btn-primary:hover:not(:disabled) {
-                    transform: translateY(-1px);
-                }
-                .btn-secondary {
-                    background: rgba(255,255,255,0.1);
-                    color: white;
-                    border: 1px solid rgba(255,255,255,0.2);
-                    border-radius: 8px;
-                    cursor: pointer;
-                }
-                .btn-small {
-                    background: rgba(59, 130, 246, 0.2);
-                    color: #60A5FA;
-                    border: 1px solid rgba(59, 130, 246, 0.3);
-                    border-radius: 4px;
-                    padding: 4px 12px;
-                    cursor: pointer;
-                    font-size: 12px;
-                }
-                .card {
-                    background: rgba(255,255,255,0.05);
-                    border: 1px solid rgba(255,255,255,0.1);
-                    border-radius: 12px;
-                    padding: 24px;
-                }
-                .data-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                }
-                .data-table th,
-                .data-table td {
-                    text-align: left;
-                    padding: 12px;
-                    border-bottom: 1px solid rgba(255,255,255,0.1);
-                }
-                .data-table th {
-                    color: #888;
-                    font-weight: 500;
-                    font-size: 12px;
-                    text-transform: uppercase;
-                }
-                .back-link {
-                    color: #888;
-                    text-decoration: none;
-                    font-size: 14px;
-                }
-                .back-link:hover {
-                    color: #fff;
-                }
-                .subtitle {
-                    color: #888;
-                    margin-top: 4px;
-                }
-            `}</style>
         </div>
+    );
+}
+
+function SyncPeriodCard({ days, label, selected, onClick }: { days: number, label: string, selected: boolean, onClick: () => void }) {
+    return (
+        <button
+            onClick={onClick}
+            className={`p-6 border rounded-lg text-left transition-all ${
+                selected 
+                ? 'bg-blue-50 border-blue-200 ring-2 ring-blue-500/20' 
+                : 'bg-white border-gray-200 hover:border-gray-300'
+            }`}
+        >
+            <Calendar size={24} className={selected ? 'text-blue-600' : 'text-gray-400'} />
+            <div className={`mt-4 font-bold ${selected ? 'text-blue-900' : 'text-gray-900'}`}>{label}</div>
+            <div className="text-xs text-gray-500 mt-1">Deduct stock for sales since {days} day(s) ago</div>
+        </button>
     );
 }

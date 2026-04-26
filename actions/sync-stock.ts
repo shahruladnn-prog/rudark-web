@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { loyverse } from '@/lib/loyverse';
@@ -9,6 +10,8 @@ import { FieldValue } from 'firebase-admin/firestore';
  * Run this hourly via Cloud Function or manually
  */
 export async function syncStockFromLoyverse() {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         console.log('[Stock Sync] Starting...');
 
@@ -162,6 +165,8 @@ export async function syncStockFromLoyverse() {
  * This is a utility function, but must be async in server actions file
  */
 export async function getAvailableStock(product: any): Promise<number> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     const total = product.stock_quantity || 0;
     const reserved = product.reserved_quantity || 0;
     return Math.max(0, total - reserved);
@@ -171,6 +176,8 @@ export async function getAvailableStock(product: any): Promise<number> {
  * Initialize stock fields for products that don't have them
  */
 export async function initializeStockFields() {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     try {
         const productsRef = adminDb.collection('products');
         const snapshot = await productsRef.get();

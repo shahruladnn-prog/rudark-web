@@ -5,17 +5,15 @@ import { useRouter } from 'next/navigation';
 import { Save, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { getPromo, savePromo } from '@/actions/promo-actions';
+import { useToast } from '@/components/ui/toast';
 
 interface PromoEditorProps {
-    params: Promise<{
-        id: string;
-    }>
+    params: Promise<{ id: string; }>
 }
 
 export default function PromoEditor({ params }: PromoEditorProps) {
-    // Unwrap async params (Next.js 15 requirement)
+    const { showToast } = useToast();
     const { id } = use(params);
-
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(true);
@@ -49,114 +47,76 @@ export default function PromoEditor({ params }: PromoEditorProps) {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-
-        const res = await savePromo({
-            id: id,
-            ...formData
-        });
-
+        const res = await savePromo({ id, ...formData });
         if (res.success) {
             router.push('/admin/promos');
         } else {
-            alert('Error: ' + res.error);
+            showToast('error', res.error || 'Failed to save promo');
         }
         setLoading(false);
     };
 
-    if (fetching) return <div className="p-8 text-gray-500">Loading protocol...</div>;
+    const inp = "w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400";
+
+    if (fetching) return <div className="p-8 text-gray-400 text-sm">Loading…</div>;
 
     return (
-        <div className="max-w-2xl mx-auto pb-20">
-            <Link href="/admin/promos" className="inline-flex items-center text-gray-400 hover:text-white mb-6 uppercase text-xs font-bold tracking-widest transition-colors">
-                <ArrowLeft size={14} className="mr-2" /> Back to Vault
-            </Link>
+        <div className="max-w-2xl pb-20">
+            <div className="flex items-center gap-3 mb-6">
+                <Link href="/admin/promos" className="p-2 text-gray-400 hover:text-gray-600"><ArrowLeft size={20} /></Link>
+                <h1 className="text-xl font-bold text-gray-900">{id === 'new' ? 'New Promo Code' : 'Edit Promo Code'}</h1>
+            </div>
 
-            <div className="bg-rudark-carbon border border-rudark-grey p-8 rounded-sm shadow-xl">
-                <h1 className="text-3xl font-condensed font-bold text-white uppercase mb-8 pb-4 border-b border-rudark-grey">
-                    {id === 'new' ? 'Issue New Protocol' : 'Edit Protocol'}
-                </h1>
-
-                <form onSubmit={handleSubmit} className="space-y-6">
-
-                    {/* Code */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm space-y-4">
+                    <h2 className="text-sm font-semibold text-gray-700">Promo Details</h2>
                     <div>
-                        <label className="block text-rudark-volt text-xs font-bold uppercase tracking-wider mb-2">Promo Code</label>
-                        <input
-                            type="text"
-                            required
-                            placeholder="e.g. SUMMER25"
+                        <label className="text-xs text-gray-500 uppercase mb-1 block">Promo Code *</label>
+                        <input type="text" required placeholder="e.g. SUMMER25"
                             value={formData.code}
                             onChange={e => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                            className="w-full bg-rudark-matte border border-rudark-grey text-white px-4 py-3 focus:outline-none focus:border-rudark-volt uppercase font-mono text-lg tracking-widest"
-                        />
+                            className={inp + " font-mono uppercase tracking-widest text-lg"} />
                     </div>
-
-                    <div className="grid grid-cols-2 gap-6">
-                        {/* Type */}
+                    <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Discount Type</label>
-                            <select
-                                value={formData.type}
-                                onChange={e => setFormData({ ...formData, type: e.target.value as any })}
-                                className="w-full bg-rudark-matte border border-rudark-grey text-white px-4 py-3 focus:outline-none focus:border-rudark-volt appearance-none"
-                            >
+                            <label className="text-xs text-gray-500 uppercase mb-1 block">Discount Type</label>
+                            <select value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value as any })} className={inp}>
                                 <option value="percentage">Percentage (%)</option>
-                                <option value="fixed">Fixed Amount ($)</option>
+                                <option value="fixed">Fixed Amount (RM)</option>
                             </select>
                         </div>
-
-                        {/* Value */}
                         <div>
-                            <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Value</label>
-                            <input
-                                type="number"
-                                required
-                                min="0"
-                                value={formData.value}
+                            <label className="text-xs text-gray-500 uppercase mb-1 block">Value</label>
+                            <input type="number" required min="0" value={formData.value}
                                 onChange={e => setFormData({ ...formData, value: parseFloat(e.target.value) })}
-                                className="w-full bg-rudark-matte border border-rudark-grey text-white px-4 py-3 focus:outline-none focus:border-rudark-volt font-mono"
-                            />
+                                className={inp + " font-mono"} />
                         </div>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-6">
-                        {/* Min Spend */}
+                    <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Min Spend ($)</label>
-                            <input
-                                type="number"
-                                min="0"
-                                value={formData.min_spend}
+                            <label className="text-xs text-gray-500 uppercase mb-1 block">Min Spend (RM)</label>
+                            <input type="number" min="0" value={formData.min_spend}
                                 onChange={e => setFormData({ ...formData, min_spend: parseFloat(e.target.value) })}
-                                className="w-full bg-rudark-matte border border-rudark-grey text-white px-4 py-3 focus:outline-none focus:border-rudark-volt font-mono"
-                            />
+                                className={inp + " font-mono"} />
                         </div>
-
-                        {/* Usage Limit */}
                         <div>
-                            <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Usage Limit</label>
-                            <input
-                                type="number"
-                                min="0"
-                                placeholder="0 for unlimited"
-                                value={formData.usage_limit}
+                            <label className="text-xs text-gray-500 uppercase mb-1 block">Usage Limit</label>
+                            <input type="number" min="0" placeholder="0 for unlimited" value={formData.usage_limit}
                                 onChange={e => setFormData({ ...formData, usage_limit: parseFloat(e.target.value) })}
-                                className="w-full bg-rudark-matte border border-rudark-grey text-white px-4 py-3 focus:outline-none focus:border-rudark-volt font-mono"
-                            />
-                            <p className="text-[10px] text-gray-500 mt-1 uppercase">0 = Unlimited Uses</p>
+                                className={inp + " font-mono"} />
+                            <p className="text-xs text-gray-400 mt-1">0 = Unlimited Uses</p>
                         </div>
                     </div>
+                </div>
 
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full bg-rudark-volt text-black font-condensed font-bold text-xl uppercase py-4 tracking-wider hover:bg-white transition-colors mt-8 disabled:opacity-50"
-                    >
-                        {loading ? 'Saving Protocol...' : 'Save Promo Code'}
+                <div className="flex justify-between items-center">
+                    <Link href="/admin/promos" className="px-4 py-2 border border-gray-200 text-gray-600 rounded text-sm hover:border-gray-300">Cancel</Link>
+                    <button type="submit" disabled={loading}
+                        className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 disabled:opacity-50 text-sm">
+                        <Save size={15} /> {loading ? 'Saving…' : 'Save Promo Code'}
                     </button>
-
-                </form>
-            </div>
+                </div>
+            </form>
         </div>
     );
 }

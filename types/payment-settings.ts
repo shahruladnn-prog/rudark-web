@@ -2,9 +2,8 @@ export type PaymentGateway = 'chip' | 'manual';
 
 export interface ChipSettings {
     enabled: boolean;
-    environment: 'test' | 'live';
     brand_id: string;
-    public_key?: string; // For webhook signature verification
+    public_key?: string;
 }
 
 export interface ManualPaymentSettings {
@@ -18,13 +17,13 @@ export interface PaymentSettings {
     enabled_gateway: PaymentGateway;
     chip: ChipSettings;
     manual_payment: ManualPaymentSettings;
+    loyverse_mappings?: Record<string, string>; // Maps Loyverse payment_type_id to label
 }
 
 export const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
-    enabled_gateway: 'chip', // CHIP as primary gateway
+    enabled_gateway: 'chip',
     chip: {
         enabled: true,
-        environment: 'test', // Start in test mode for safety
         brand_id: '91941783-06d8-4ee6-9a72-46b7880b8f2e'
     },
     manual_payment: {
@@ -40,5 +39,6 @@ After payment, please email proof to: orders@rudark.my
 
 Reference: [ORDER_ID]`,
         allowed_payment_methods: ['Bank Transfer', 'Cash on Collection']
-    }
+    },
+    loyverse_mappings: {}
 };

@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { loyverse } from '@/lib/loyverse';
@@ -15,6 +16,8 @@ export async function syncStockFromLoyverse(): Promise<{
     skipped: number;
     errors: string[];
 }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
     const errors: string[] = [];
     let synced = 0;
     let skipped = 0;

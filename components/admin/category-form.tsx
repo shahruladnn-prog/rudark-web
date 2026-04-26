@@ -6,6 +6,7 @@ import { Save, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { saveCategory } from '@/actions/category-actions';
 import ImageUploader from './image-uploader';
+import { useToast } from '@/components/ui/toast';
 
 interface CategoryFormProps {
     initialData?: any;
@@ -14,6 +15,7 @@ interface CategoryFormProps {
 
 export default function CategoryForm({ initialData, id }: CategoryFormProps) {
     const router = useRouter();
+    const { showToast } = useToast();
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState(initialData || {
         name: '',
@@ -62,11 +64,10 @@ export default function CategoryForm({ initialData, id }: CategoryFormProps) {
         const res = await saveCategory(payload);
 
         if (res.success) {
-            alert("Category saved!");
+            showToast('success', 'Category saved!');
             router.push('/admin/categories');
-            router.refresh();
         } else {
-            alert("Error: " + res.error);
+            showToast('error', res.error || 'Failed to save category');
             setLoading(false);
         }
     };

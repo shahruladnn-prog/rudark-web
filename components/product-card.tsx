@@ -5,10 +5,12 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 
-// Component
 export default function ProductCard({ product }: { product: Product }) {
     const hasPromo = product.promo_price && product.promo_price > 0 && product.promo_price < product.web_price;
     const displayPrice = hasPromo ? product.promo_price : product.web_price;
+
+    const availableStock = Math.max(0, (product.stock_quantity ?? 0) - (product.reserved_quantity ?? 0));
+    const showCount = product.stock_status === 'LOW' && availableStock > 0 && availableStock <= 10;
 
     return (
         <motion.div
@@ -17,7 +19,7 @@ export default function ProductCard({ product }: { product: Product }) {
             viewport={{ once: true }}
             className="group relative bg-rudark-carbon border border-rudark-grey/50 rounded-sm overflow-hidden hover:border-rudark-volt transition-all duration-300 flex flex-col h-full"
         >
-            {/* Badge */}
+            {/* Badges */}
             <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
                 {product.stock_status === 'OUT' && (
                     <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 uppercase tracking-widest">
@@ -25,8 +27,8 @@ export default function ProductCard({ product }: { product: Product }) {
                     </span>
                 )}
                 {product.stock_status === 'LOW' && (
-                    <span className="bg-yellow-500 text-black text-[10px] font-bold px-2 py-1 uppercase tracking-widest">
-                        Low Stock
+                    <span className="bg-orange-500 text-black text-[10px] font-bold px-2 py-1 uppercase tracking-widest">
+                        {showCount ? `${availableStock} Left` : 'Low Stock'}
                     </span>
                 )}
                 {product.stock_status === 'CONTACT_US' && (

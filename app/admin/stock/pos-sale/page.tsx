@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, ShoppingBag, Package, Plus, Trash2, Check, DollarSign } from 'lucide-react';
 import { getProducts } from '@/actions/product-actions';
 import { recordStockMovement } from '@/actions/stock-movement-actions';
+import { useToast } from '@/components/ui/toast';
 
 interface ProductOption {
     id: string;
@@ -41,6 +42,7 @@ const PAYMENT_METHODS = [
 ];
 
 export default function POSSalesPage() {
+    const { showToast } = useToast();
     const [products, setProducts] = useState<ProductOption[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -147,14 +149,14 @@ export default function POSSalesPage() {
         e.preventDefault();
 
         if (saleItems.length === 0) {
-            alert('Please add at least one item');
+            showToast('warning', 'Please add at least one item');
             return;
         }
 
         // Validate stock
         for (const item of saleItems) {
             if (item.quantity > item.current_stock) {
-                alert(`Insufficient stock for ${item.product_name}. Available: ${item.current_stock}`);
+                showToast('warning', `Insufficient stock for ${item.product_name}. Available: ${item.current_stock}`);
                 return;
             }
         }
@@ -185,7 +187,7 @@ export default function POSSalesPage() {
             setNotes('');
             setTimeout(() => setSuccess(false), 3000);
         } catch (error) {
-            alert('Error recording sale: ' + error);
+            showToast('error', 'Error recording sale: ' + error);
         }
         setSubmitting(false);
     };
@@ -194,105 +196,47 @@ export default function POSSalesPage() {
     const totalItems = saleItems.reduce((sum, item) => sum + item.quantity, 0);
 
     return (
-        <div className="max-w-5xl mx-auto pb-20">
-            {/* Header */}
-            <div className="border-b border-rudark-grey pb-6 mb-8">
-                <Link href="/admin/stock" className="flex items-center gap-2 text-gray-400 hover:text-white mb-4 text-sm">
-                    <ArrowLeft size={16} />
-                    Back to Stock
-                </Link>
-                <h1 className="text-3xl font-condensed font-bold text-white uppercase">
-                    Record <span className="text-orange-400">POS Sale</span>
-                </h1>
-                <p className="text-gray-400 text-sm mt-1">
-                    Manually record physical store sales for stock deduction
-                </p>
+        <div className="max-w-5xl pb-20">
+            <div className="flex items-center gap-3 mb-6">
+                <Link href="/admin/stock" className="p-2 text-gray-400 hover:text-gray-600"><ArrowLeft size={20} /></Link>
+                <div>
+                    <h1 className="text-xl font-bold text-gray-900">Record POS Sale</h1>
+                    <p className="text-sm text-gray-400">Manually record physical store sales for stock deduction</p>
+                </div>
             </div>
 
-            {/* Success Message */}
-            {success && (
-                <div className="bg-green-900/30 border border-green-500/50 rounded-sm p-4 mb-6 flex items-center gap-3">
-                    <Check size={20} className="text-green-400" />
-                    <span className="text-green-400">Sale recorded successfully. Stock has been updated.</span>
-                </div>
-            )}
-
             <form onSubmit={handleSubmit}>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Left Column */}
-                    <div className="lg:col-span-2 space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <div className="lg:col-span-2 space-y-4">
                         {/* Add Items */}
-                        <div className="bg-rudark-carbon p-6 border border-rudark-grey rounded-sm">
-                            <h2 className="text-lg font-bold text-white uppercase mb-4 flex items-center gap-2">
-                                <Plus size={20} className="text-orange-400" />
-                                Add Items
-                            </h2>
-
-                            <input
-                                type="text"
-                                placeholder="Search products..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full bg-rudark-matte border border-rudark-grey text-white p-3 rounded-sm mb-4"
-                            />
-
-                            <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                            <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2"><Plus size={16} className="text-orange-500" /> Add Items</h2>
+                            <input type="text" placeholder="Filter products…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                                className="w-full border border-gray-200 rounded px-3 py-2 text-sm mb-3 focus:outline-none focus:border-blue-400" />
+                            <div className="grid grid-cols-2 gap-3">
                                 <div className="col-span-2 md:col-span-1">
-                                    <select
-                                        value={addingProduct}
-                                        onChange={(e) => {
-                                            setAddingProduct(e.target.value);
-                                            setAddingVariant('');
-                                        }}
-                                        className="w-full bg-rudark-matte border border-rudark-grey text-white p-3 rounded-sm"
-                                    >
-                                        <option value="">-- Select Product --</option>
-                                        {filteredProducts.map(product => (
-                                            <option key={product.id} value={product.id}>
-                                                {product.name} (Stock: {product.stock_quantity})
-                                            </option>
-                                        ))}
+                                    <select value={addingProduct} onChange={e => { setAddingProduct(e.target.value); setAddingVariant(''); }}
+                                        className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
+                                        <option value="">— Select Product —</option>
+                                        {filteredProducts.map(p => <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock_quantity})</option>)}
                                     </select>
                                 </div>
-
                                 {selectedProduct?.variants && selectedProduct.variants.length > 0 && (
                                     <div className="col-span-2 md:col-span-1">
-                                        <select
-                                            value={addingVariant}
-                                            onChange={(e) => setAddingVariant(e.target.value)}
-                                            className="w-full bg-rudark-matte border border-rudark-grey text-white p-3 rounded-sm"
-                                        >
-                                            <option value="">-- Select Variant --</option>
-                                            {selectedProduct.variants.map(variant => {
-                                                const label = Object.values(variant.options || {}).join(' / ');
-                                                return (
-                                                    <option key={variant.sku} value={variant.sku}>
-                                                        {label || variant.sku} (Stock: {variant.stock_quantity ?? 0})
-                                                    </option>
-                                                );
-                                            })}
+                                        <select value={addingVariant} onChange={e => setAddingVariant(e.target.value)}
+                                            className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
+                                            <option value="">— Select Variant —</option>
+                                            {selectedProduct.variants.map(v => <option key={v.sku} value={v.sku}>{Object.values(v.options || {}).join(' / ') || v.sku} (Stock: {v.stock_quantity ?? 0})</option>)}
                                         </select>
                                     </div>
                                 )}
-
                                 <div>
-                                    <input
-                                        type="number"
-                                        min={1}
-                                        value={addingQuantity}
-                                        onChange={(e) => setAddingQuantity(parseInt(e.target.value) || 1)}
-                                        placeholder="Qty"
-                                        className="w-full bg-rudark-matte border border-rudark-grey text-white p-3 rounded-sm"
-                                    />
+                                    <input type="number" min={1} value={addingQuantity} onChange={e => setAddingQuantity(parseInt(e.target.value) || 1)} placeholder="Qty"
+                                        className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
                                 </div>
-
                                 <div>
-                                    <button
-                                        type="button"
-                                        onClick={handleAddItem}
-                                        disabled={!addingProduct}
-                                        className="w-full px-4 py-3 bg-orange-600 text-white font-bold uppercase rounded-sm hover:bg-orange-500 disabled:opacity-50"
-                                    >
+                                    <button type="button" onClick={handleAddItem} disabled={!addingProduct}
+                                        className="w-full px-4 py-2 bg-orange-500 text-white font-medium rounded hover:bg-orange-600 disabled:opacity-50 text-sm">
                                         Add Item
                                     </button>
                                 </div>
@@ -300,41 +244,25 @@ export default function POSSalesPage() {
                         </div>
 
                         {/* Items List */}
-                        <div className="bg-rudark-carbon p-6 border border-rudark-grey rounded-sm">
-                            <h2 className="text-lg font-bold text-white uppercase mb-4 flex items-center gap-2">
-                                <ShoppingBag size={20} />
-                                Sale Items ({saleItems.length})
-                            </h2>
-
+                        <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                            <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2"><ShoppingBag size={16} /> Sale Items ({saleItems.length})</h2>
                             {saleItems.length === 0 ? (
-                                <p className="text-gray-500 text-center py-8">No items added yet</p>
+                                <p className="text-gray-400 text-sm text-center py-6">No items added yet</p>
                             ) : (
-                                <div className="space-y-3">
-                                    {saleItems.map((item, index) => (
-                                        <div key={index} className="flex justify-between items-center p-4 bg-rudark-matte rounded-sm">
+                                <div className="space-y-2">
+                                    {saleItems.map((item, i) => (
+                                        <div key={i} className="flex justify-between items-center p-3 bg-gray-50 rounded border border-gray-100">
                                             <div>
-                                                <div className="text-white font-medium">{item.product_name}</div>
-                                                {item.variant_label && (
-                                                    <div className="text-gray-400 text-xs">{item.variant_label}</div>
-                                                )}
-                                                <div className="text-gray-500 text-xs">
-                                                    RM {item.unit_price.toFixed(2)} × {item.quantity}
-                                                </div>
+                                                <div className="text-sm font-medium text-gray-900">{item.product_name}</div>
+                                                {item.variant_label && <div className="text-xs text-gray-400">{item.variant_label}</div>}
+                                                <div className="text-xs text-gray-400">RM {item.unit_price.toFixed(2)} × {item.quantity}</div>
                                             </div>
-                                            <div className="flex items-center gap-4">
+                                            <div className="flex items-center gap-3">
                                                 <div className="text-right">
-                                                    <div className="text-white font-bold">{item.quantity} pcs</div>
-                                                    <div className="text-orange-400 text-sm font-mono">
-                                                        RM {(item.quantity * item.unit_price).toFixed(2)}
-                                                    </div>
+                                                    <div className="text-sm font-semibold text-gray-900">{item.quantity} pcs</div>
+                                                    <div className="text-orange-500 text-xs font-mono">RM {(item.quantity * item.unit_price).toFixed(2)}</div>
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleRemoveItem(index)}
-                                                    className="text-red-400 hover:text-red-300"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
+                                                <button type="button" onClick={() => handleRemoveItem(i)} className="text-red-400 hover:text-red-500"><Trash2 size={15} /></button>
                                             </div>
                                         </div>
                                     ))}
@@ -343,90 +271,44 @@ export default function POSSalesPage() {
                         </div>
                     </div>
 
-                    {/* Right Column - Sale Details & Summary */}
-                    <div className="space-y-6">
-                        {/* Sale Details */}
-                        <div className="bg-rudark-carbon p-6 border border-rudark-grey rounded-sm">
-                            <h2 className="text-lg font-bold text-white uppercase mb-4 flex items-center gap-2">
-                                <DollarSign size={20} />
-                                Sale Details
-                            </h2>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-gray-400 text-sm mb-2">Payment Method</label>
-                                    <select
-                                        value={paymentMethod}
-                                        onChange={(e) => setPaymentMethod(e.target.value)}
-                                        className="w-full bg-rudark-matte border border-rudark-grey text-white p-3 rounded-sm"
-                                    >
-                                        {PAYMENT_METHODS.map(pm => (
-                                            <option key={pm.value} value={pm.value}>{pm.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-gray-400 text-sm mb-2">Receipt/Reference #</label>
-                                    <input
-                                        type="text"
-                                        value={receiptNumber}
-                                        onChange={(e) => setReceiptNumber(e.target.value)}
-                                        placeholder="e.g., Loyverse receipt #"
-                                        className="w-full bg-rudark-matte border border-rudark-grey text-white p-3 rounded-sm"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-gray-400 text-sm mb-2">Notes</label>
-                                    <textarea
-                                        value={notes}
-                                        onChange={(e) => setNotes(e.target.value)}
-                                        placeholder="Any notes..."
-                                        className="w-full bg-rudark-matte border border-rudark-grey text-white p-3 rounded-sm"
-                                        rows={2}
-                                    />
-                                </div>
+                    {/* Right */}
+                    <div className="space-y-4">
+                        <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm space-y-3">
+                            <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><DollarSign size={16} /> Sale Details</h2>
+                            <div>
+                                <label className="text-xs text-gray-500 mb-1 block">Payment Method</label>
+                                <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
+                                    className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
+                                    {PAYMENT_METHODS.map(pm => <option key={pm.value} value={pm.value}>{pm.label}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-500 mb-1 block">Receipt/Reference #</label>
+                                <input type="text" value={receiptNumber} onChange={e => setReceiptNumber(e.target.value)} placeholder="e.g. Loyverse receipt #"
+                                    className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-500 mb-1 block">Notes</label>
+                                <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any notes…" rows={2}
+                                    className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none" />
                             </div>
                         </div>
 
-                        {/* Summary */}
-                        <div className="bg-rudark-carbon p-6 border border-orange-500/30 rounded-sm">
-                            <h2 className="text-lg font-bold text-white uppercase mb-4">Summary</h2>
-
-                            <div className="space-y-3">
-                                <div className="flex justify-between text-gray-400">
-                                    <span>Items:</span>
-                                    <span className="text-white">{saleItems.length}</span>
-                                </div>
-                                <div className="flex justify-between text-gray-400">
-                                    <span>Total Qty:</span>
-                                    <span className="text-white">{totalItems}</span>
-                                </div>
-                                <div className="flex justify-between text-gray-400 pt-3 border-t border-rudark-grey">
+                        <div className="bg-white border border-orange-200 rounded-lg p-5 shadow-sm">
+                            <h2 className="text-sm font-semibold text-gray-700 mb-3">Summary</h2>
+                            <div className="space-y-2 text-sm mb-4">
+                                <div className="flex justify-between text-gray-500"><span>Items:</span><span className="text-gray-900">{saleItems.length}</span></div>
+                                <div className="flex justify-between text-gray-500"><span>Total Qty:</span><span className="text-gray-900">{totalItems}</span></div>
+                                <div className="flex justify-between text-gray-500 pt-2 border-t border-gray-100">
                                     <span>Total:</span>
-                                    <span className="text-orange-400 font-bold text-xl font-mono">
-                                        RM {totalAmount.toFixed(2)}
-                                    </span>
+                                    <span className="text-orange-600 font-bold font-mono">RM {totalAmount.toFixed(2)}</span>
                                 </div>
                             </div>
-
-                            <button
-                                type="submit"
-                                disabled={submitting || saleItems.length === 0}
-                                className="w-full mt-6 px-6 py-3 bg-orange-600 text-white font-bold uppercase rounded-sm hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                            >
-                                {submitting ? 'Processing...' : (
-                                    <>
-                                        <Check size={18} />
-                                        Record Sale
-                                    </>
-                                )}
+                            <button type="submit" disabled={submitting || saleItems.length === 0}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 bg-orange-500 text-white font-medium rounded hover:bg-orange-600 disabled:opacity-50 text-sm">
+                                {submitting ? 'Processing…' : <><Check size={15} /> Record Sale</>}
                             </button>
-
-                            <p className="text-gray-500 text-xs text-center mt-3">
-                                Stock will be deducted immediately
-                            </p>
+                            <p className="text-gray-400 text-xs text-center mt-2">Stock will be deducted immediately</p>
                         </div>
                     </div>
                 </div>

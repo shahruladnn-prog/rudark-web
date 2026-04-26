@@ -1,9 +1,45 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { PaymentSettings, DEFAULT_PAYMENT_SETTINGS, PaymentGateway } from '@/types/payment-settings';
+import { loyverse } from '@/lib/loyverse';
 
 const SETTINGS_DOC = 'settings/payment';
+
+/**
+ * Sync available payment types from Loyverse to our settings
+ */
+export async function syncLoyversePaymentTypes() {
+    await requireRole(['owner']);
+
+    try {
+        const data = await loyverse.getPaymentTypes();
+        const lvTypes = data.payment_types || [];
+        
+        // Fetch current settings
+        const doc = await adminDb.doc(SETTINGS_DOC).get();
+        const current = doc.exists ? doc.data() as PaymentSettings : DEFAULT_PAYMENT_SETTINGS;
+        
+        const newMappings = { ...(current.loyverse_mappings || {}) };
+        
+        // Add any new types from Loyverse that we don't have yet
+        lvTypes.forEach((t: any) => {
+            if (!newMappings[t.id]) {
+                newMappings[t.id] = t.name;
+            }
+        });
+
+        await adminDb.doc(SETTINGS_DOC).set({
+            loyverse_mappings: newMappings
+        }, { merge: true });
+
+        return { success: true, count: lvTypes.length };
+    } catch (error: any) {
+        console.error('Error syncing Loyverse payment types:', error);
+        return { success: false, error: error.message };
+    }
+}
 
 /**
  * Get current payment settings
@@ -29,6 +65,8 @@ export async function getPaymentSettings(): Promise<PaymentSettings> {
  * Update payment settings
  */
 export async function updatePaymentSettings(settings: Partial<PaymentSettings>) {
+    await requireRole(['owner']);
+
     try {
         await adminDb.doc(SETTINGS_DOC).set(settings, { merge: true });
         return { success: true };
@@ -42,6 +80,8 @@ export async function updatePaymentSettings(settings: Partial<PaymentSettings>) 
  * Switch active payment gateway
  */
 export async function switchPaymentGateway(gateway: PaymentGateway) {
+    await requireRole(['owner']);
+
     try {
         await adminDb.doc(SETTINGS_DOC).update({
             enabled_gateway: gateway
@@ -54,28 +94,10 @@ export async function switchPaymentGateway(gateway: PaymentGateway) {
 }
 
 /**
- * Toggle CHIP environment (test/live)
+ * Get CHIP live API key
  */
-export async function toggleChipEnvironment(environment: 'test' | 'live') {
-    try {
-        await adminDb.doc(SETTINGS_DOC).update({
-            'chip.environment': environment
-        });
-        return { success: true };
-    } catch (error) {
-        console.error('Error toggling CHIP environment:', error);
-        return { success: false, error: 'Failed to toggle environment' };
-    }
-}
-
-
-/**
- * Get API key for CHIP based on environment
- */
-export async function getChipApiKey(environment: 'test' | 'live'): Promise<string> {
-    return environment === 'live'
-        ? process.env.CHIP_LIVE_SECRET_KEY!
-        : process.env.CHIP_TEST_SECRET_KEY!;
+export async function getChipApiKey(): Promise<string> {
+    return process.env.CHIP_LIVE_SECRET_KEY!;
 }
 
 /**
@@ -92,5 +114,33 @@ export async function getChipPublicKey(): Promise<string | undefined> {
  * Get BizAppay API key
  */
 export async function getBizappayApiKey(): Promise<string> {
+    await requireRole(['owner']);
+
     return process.env.BIZAPP_API_KEY!;
+}
+
+/**
+ * Get simple list of active payment methods for POS UI
+ */
+export async function getPOSPaymentMethods() {
+    try {
+        const settings = await getPaymentSettings();
+        const mappings = settings.loyverse_mappings || {};
+        
+        // If no mappings, provide defaults
+        if (Object.keys(mappings).length === 0) {
+            return [
+                { id: 'CASH', label: 'Cash' },
+                { id: 'CARD', label: 'Card' },
+                { id: 'OTHER', label: 'QR Pay / Transfer' }
+            ];
+        }
+
+        return Object.entries(mappings).map(([id, label]) => ({
+            id,
+            label: label as string
+        }));
+    } catch {
+        return [{ id: 'CASH', label: 'Cash' }];
+    }
 }

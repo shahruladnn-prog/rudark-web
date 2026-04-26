@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(ls app/admin/customers/)",
+      "Bash(ls app/admin/settings/)",
+      "Bash(git diff *)",
+      "Bash(ls public/robots.txt)",
+      "Bash(ls app/robots.ts)",
+      "Bash(ls app/robots.txt)",
+      "Bash(cat next.config.ts)",
+      "Bash(cat next.config.js)",
+      "Bash(cat next.config.mjs)",
+      "Bash(gemini --version)",
+      "Bash(npm install *)",
+      "Bash(rm -f add-sweep-function.js fix-syntax.js patch-functions.js secure-actions.js secure-api.js)",
+      "Bash(ls *.js)"
+    ]
+  }
+}

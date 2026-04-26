@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 
@@ -80,6 +81,8 @@ async function traceShipment(trackingNo: string) {
 }
 
 export async function searchOrder(query: string): Promise<OrderSearchResult> {
+    await requireRole(['owner', 'staff']);
+
     if (!query || query.trim().length < 3) {
         return { success: false, error: "Please enter a valid Order ID, Phone Number, or Tracking Number." };
     }

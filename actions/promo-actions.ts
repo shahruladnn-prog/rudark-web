@@ -1,4 +1,5 @@
 'use server';
+import { requireRole } from '@/actions/session-actions';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { revalidatePath } from 'next/cache';
@@ -16,6 +17,8 @@ export interface PromoCode {
 }
 
 export async function getPromos() {
+    await requireRole(['owner', 'staff']);
+
     try {
         const snapshot = await adminDb.collection('promos').orderBy('created_at', 'desc').get();
         return snapshot.docs.map(doc => {
@@ -40,6 +43,8 @@ export async function getPromos() {
 }
 
 export async function getPromo(id: string): Promise<PromoCode | null> {
+    await requireRole(['owner', 'staff']);
+
     try {
         const doc = await adminDb.collection('promos').doc(id).get();
         if (!doc.exists) return null;
@@ -62,6 +67,8 @@ export async function getPromo(id: string): Promise<PromoCode | null> {
 }
 
 export async function savePromo(data: any) {
+    await requireRole(['owner', 'staff']);
+
     try {
         const { id, ...payload } = data;
 
@@ -101,6 +108,8 @@ export async function savePromo(data: any) {
 }
 
 export async function deletePromo(id: string) {
+    await requireRole(['owner', 'staff']);
+
     try {
         await adminDb.collection('promos').doc(id).delete();
         revalidatePath('/admin/promos');
@@ -111,6 +120,8 @@ export async function deletePromo(id: string) {
 }
 
 export async function togglePromoStatus(id: string, currentStatus: boolean) {
+    await requireRole(['owner', 'staff']);
+
     try {
         await adminDb.collection('promos').doc(id).update({ active: !currentStatus });
         revalidatePath('/admin/promos');
