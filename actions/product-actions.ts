@@ -64,6 +64,7 @@ export async function toggleProductVisibility(id: string, field: 'is_public' | '
         });
         revalidatePath('/admin/products');
         revalidatePath('/shop');
+        revalidatePath('/catalog');
         revalidatePath('/');
         return { success: true };
     } catch (error: any) {
@@ -115,6 +116,7 @@ export async function saveProduct(productData: Partial<Product>) {
         revalidatePath('/admin/products');
         revalidatePath(`/admin/products/${id}`);
         revalidatePath('/shop');
+        revalidatePath('/catalog');
         revalidatePath('/');
 
         const currentSku = data.sku;
@@ -140,6 +142,7 @@ export async function deleteProduct(id: string) {
 
         revalidatePath('/admin/products');
         revalidatePath('/shop');
+        revalidatePath('/catalog');
         revalidatePath('/');
         if (sku) revalidatePath(`/product/${sku}`);
         return { success: true };

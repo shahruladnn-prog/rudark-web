@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Search, SlidersHorizontal, X, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -13,13 +14,19 @@ interface ShopClientProps {
     categories: Array<{ name: string; slug: string; product_count: number }>;
 }
 
-export default function ShopClient({ initialProducts, categories }: ShopClientProps) {
+function ShopClientInner({ initialProducts, categories }: ShopClientProps) {
+    const searchParams = useSearchParams();
     const [products, setProducts] = useState(initialProducts);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [priceRange, setPriceRange] = useState([0, 10000]);
     const [sortBy, setSortBy] = useState('featured');
     const [showFilters, setShowFilters] = useState(false);
+
+    useEffect(() => {
+        const category = searchParams.get('category');
+        if (category) setSelectedCategories([category]);
+    }, [searchParams]);
 
     // Filter and sort products
     const filteredProducts = useMemo(() => {
@@ -307,6 +314,14 @@ export default function ShopClient({ initialProducts, categories }: ShopClientPr
                 <NewsletterForm source="shop_page" />
             </div>
         </div>
+    );
+}
+
+export default function ShopClient(props: ShopClientProps) {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-rudark-matte pt-32 flex items-center justify-center text-gray-500 font-mono uppercase">Loading shop…</div>}>
+            <ShopClientInner {...props} />
+        </Suspense>
     );
 }
 

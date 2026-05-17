@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Teko, Montserrat, Black_Ops_One } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "@/context/cart-context";
+import { CatalogInquiryProvider } from "@/context/catalog-inquiry-context";
 import { AuthProvider } from '@/components/auth-provider';
 import { DialogProvider } from '@/components/ui/dialog';
 import { ToastProvider } from '@/components/ui/toast';
@@ -95,9 +96,11 @@ export default async function RootLayout({
           <DialogProvider>
             <ToastProvider>
               <CartProvider>
-                <LayoutWrapper categories={categories} settings={settings}>
-                  {children}
-                </LayoutWrapper>
+                <CatalogInquiryProvider>
+                  <LayoutWrapper categories={categories} settings={settings}>
+                    {children}
+                  </LayoutWrapper>
+                </CatalogInquiryProvider>
                 <Analytics />
                 <AnalyticsProvider />
               </CartProvider>

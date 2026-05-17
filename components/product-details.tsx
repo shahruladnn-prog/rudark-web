@@ -4,6 +4,7 @@ import { Product } from '@/types';
 import { useState, useEffect } from 'react';
 import AddToCartButton from './add-to-cart-button';
 import { trackViewItem } from '@/lib/analytics';
+import { resolvePurchaseMode } from '@/lib/catalog-utils';
 
 export default function ProductDetails({
     product,
@@ -100,6 +101,12 @@ export default function ProductDetails({
     // If activeVariant exists, use its status
     // Else fall back to product status
     let currentStatus = (activeVariant ? activeVariant.stock_status : product.stock_status) as 'IN_STOCK' | 'OUT' | 'LOW' | 'ARCHIVED' | 'CONTACT_US';
+    const purchaseMode = resolvePurchaseMode(product);
+    const showContactOnly =
+        !product.is_public ||
+        purchaseMode === 'inquire' ||
+        purchaseMode === 'display' ||
+        currentStatus === 'CONTACT_US';
 
     // If explicit "OUT", force out. If "IN_STOCK", it means "Selling" -> checked via API later, 
     // but for UI display we trust the DB status 'IN_STOCK' unless checkStock says otherwise.
@@ -189,7 +196,7 @@ export default function ProductDetails({
             <div className="mt-auto pt-8 border-t border-rudark-grey/30">
                 <div className="flex flex-col gap-4">
                     {/* Action Area: Contact Us or Add to Cart */}
-                    {currentStatus === 'CONTACT_US' ? (
+                    {showContactOnly ? (
                         <div className="bg-rudark-carbon border border-blue-900/50 p-6 rounded-sm space-y-4">
                             <div className="flex items-center gap-3 text-blue-400 mb-2">
                                 <span className="font-bold uppercase tracking-wide text-sm">Unavailable Online</span>

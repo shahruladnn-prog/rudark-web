@@ -33,6 +33,10 @@ export interface ProductVariant {
     stock_tiktok?: number;
 }
 
+export type PurchaseMode = 'online' | 'inquire' | 'display';
+export type PriceDisplay = 'fixed' | 'from' | 'quote' | 'hidden';
+export type CatalogUseCase = 'retail' | 'events' | 'corporate';
+
 export interface Product {
     id?: string;
     sku: string; // Base SKU (or link to Loyverse Parent)
@@ -88,6 +92,80 @@ export interface Product {
     content_type?: 'general' | 'outdoors' | 'sports' | 'accessories' | 'muslimah' | 'health' | 'gadget_general' | 'others';
 
     category?: string;
+
+    // Catalog display (B2B / showcase)
+    show_in_catalog?: boolean;
+    catalog_featured?: boolean;
+    purchase_mode?: PurchaseMode;
+    price_display?: PriceDisplay;
+    catalog_tags?: string[];
+    use_cases?: CatalogUseCase[];
+    moq?: number;
+    lead_time_days?: number;
+    customizable?: boolean;
+    catalog_sort?: number;
+    catalog_locked?: boolean;
+}
+
+/** Non-inventory catalog items (services, capabilities) */
+export interface CatalogEntry {
+    id?: string;
+    slug: string;
+    title: string;
+    description: string;
+    images: string[];
+    image_thumbnails?: string[];
+    purchase_mode: PurchaseMode;
+    price_display: PriceDisplay;
+    web_price?: number;
+    catalog_tags?: string[];
+    use_cases?: CatalogUseCase[];
+    moq?: number;
+    lead_time_days?: number;
+    customizable?: boolean;
+    catalog_featured?: boolean;
+    catalog_sort?: number;
+    is_active?: boolean;
+    created_at?: any;
+    updated_at?: any;
+}
+
+/** Unified shape for catalog UI (products + entries) */
+export type CatalogItemSource = 'product' | 'entry';
+
+export interface CatalogItem {
+    id: string;
+    source: CatalogItemSource;
+    sku: string;
+    name: string;
+    description: string;
+    images: string[];
+    image_thumbnails?: string[];
+    category_slug?: string;
+    web_price?: number;
+    promo_price?: number;
+    purchase_mode: PurchaseMode;
+    price_display: PriceDisplay;
+    catalog_tags?: string[];
+    use_cases?: CatalogUseCase[];
+    moq?: number;
+    lead_time_days?: number;
+    customizable?: boolean;
+    catalog_featured?: boolean;
+    catalog_sort?: number;
+    stock_status?: Product['stock_status'];
+    is_public?: boolean;
+    options?: VariantOption[];
+    variants?: ProductVariant[];
+    product_id?: string;
+}
+
+export interface CatalogInquiryLine {
+    sku: string;
+    name: string;
+    image?: string;
+    source: CatalogItemSource;
+    note?: string;
 }
 
 export interface CartItem extends Product {

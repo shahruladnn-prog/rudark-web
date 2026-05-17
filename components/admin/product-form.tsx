@@ -691,6 +691,29 @@ export default function ProductForm({ initialData, categories = [] }: { initialD
                         </div>
                     </div>
 
+                    {/* Catalog display */}
+                    <div className="bg-[#1a1a1a] border border-gray-800 p-5 shadow-sm">
+                        <h3 className="text-white text-xs font-bold uppercase mb-4 border-b border-gray-700/50 pb-2">Catalog Display</h3>
+                        <div className="mb-4">
+                            <button type="button" onClick={() => updateField('show_in_catalog', formData.show_in_catalog === false)} className={`w-full flex justify-between px-4 py-3 rounded border text-[10px] font-bold uppercase ${formData.show_in_catalog !== false ? 'bg-rudark-volt/10 border-rudark-volt/50 text-rudark-volt' : 'border-gray-700 text-gray-500'}`}>
+                                <span>Show in catalog</span><span>{formData.show_in_catalog !== false ? 'ON' : 'OFF'}</span>
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                            <div><label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">Purchase mode</label><select value={formData.purchase_mode || ''} onChange={(e) => updateField('purchase_mode', e.target.value || undefined)} className="w-full bg-black border border-gray-700 text-white text-xs px-2 py-2"><option value="">Auto</option><option value="online">Online</option><option value="inquire">Inquire</option><option value="display">Display</option></select></div>
+                            <div><label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">Price display</label><select value={formData.price_display || ''} onChange={(e) => updateField('price_display', e.target.value || undefined)} className="w-full bg-black border border-gray-700 text-white text-xs px-2 py-2"><option value="">Auto</option><option value="fixed">Fixed</option><option value="from">From</option><option value="quote">Quote</option><option value="hidden">Hidden</option></select></div>
+                        </div>
+                        <div className="mb-4"><label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">Catalog tags</label><input type="text" value={(formData.catalog_tags || []).join(', ')} onChange={(e) => updateField('catalog_tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} className="w-full bg-black border border-gray-700 text-white text-xs px-2 py-2" /></div>
+                        <div className="mb-4"><label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">Use cases</label><div className="flex flex-wrap gap-2">{(['retail','events','corporate'] as const).map(uc => { const sel = formData.use_cases?.includes(uc); return <button key={uc} type="button" onClick={() => { const c = formData.use_cases || []; updateField('use_cases', sel ? c.filter(x => x !== uc) : [...c, uc]); }} className={`text-[10px] uppercase px-2 py-1 border ${sel ? 'border-rudark-volt text-rudark-volt' : 'border-gray-700 text-gray-500'}`}>{uc}</button>; })}</div></div>
+                        <div className="grid grid-cols-3 gap-2 mb-4">
+                            <div><label className="text-[10px] text-gray-500 uppercase block mb-1">MOQ</label><input type="number" value={formData.moq ?? ''} onChange={(e) => updateField('moq', e.target.value ? Number(e.target.value) : undefined)} className="w-full bg-black border border-gray-700 text-white text-xs px-2 py-2" /></div>
+                            <div><label className="text-[10px] text-gray-500 uppercase block mb-1">Lead days</label><input type="number" value={formData.lead_time_days ?? ''} onChange={(e) => updateField('lead_time_days', e.target.value ? Number(e.target.value) : undefined)} className="w-full bg-black border border-gray-700 text-white text-xs px-2 py-2" /></div>
+                            <div><label className="text-[10px] text-gray-500 uppercase block mb-1">Sort</label><input type="number" value={formData.catalog_sort ?? ''} onChange={(e) => updateField('catalog_sort', e.target.value ? Number(e.target.value) : undefined)} className="w-full bg-black border border-gray-700 text-white text-xs px-2 py-2" /></div>
+                        </div>
+                        <div className="flex items-center gap-3 bg-black p-3 border border-gray-700 mb-2"><input type="checkbox" id="customizable" checked={!!formData.customizable} onChange={(e) => updateField('customizable', e.target.checked)} className="accent-rudark-volt" /><label htmlFor="customizable" className="text-xs uppercase text-white">Customizable</label></div>
+                        <div className="flex items-center gap-3 bg-black p-3 border border-gray-700"><input type="checkbox" id="catalog_featured" checked={!!formData.catalog_featured} onChange={(e) => updateField('catalog_featured', e.target.checked)} className="accent-rudark-volt" /><label htmlFor="catalog_featured" className="text-xs uppercase text-white">Featured in catalog</label></div>
+                    </div>
+
                     {/* Logistics Card */}
                     <div className="bg-[#1a1a1a] border border-gray-800 p-5 shadow-sm">
                         <div className="flex items-center gap-2 mb-4 border-b border-gray-700/50 pb-2">

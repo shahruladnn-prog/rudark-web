@@ -9,7 +9,7 @@ import {
     Package, FolderTree, Tag, Users, MessageSquare,
     Building2, Truck as TruckIcon, MapPin, CreditCard, Settings,
     BarChart3, Activity, ExternalLink, LogOut, Menu, X, ChevronRight,
-    Receipt, Shield, FileText
+    Receipt, Shield, FileText, BookOpen
     } from 'lucide-react';
 
 import { getAuth, signOut } from 'firebase/auth';
@@ -50,6 +50,7 @@ const NAV_GROUPS = [
         label: 'Catalogue',
         items: [
             { icon: Package, label: 'Products', href: '/admin/products' },
+            { icon: BookOpen, label: 'Catalog Entries', href: '/admin/catalog-entries' },
             { icon: FolderTree, label: 'Categories', href: '/admin/categories' },
             { icon: Tag, label: 'Promos', href: '/admin/promos' },
             { icon: Users, label: 'Consignments', href: '/admin/consignments' },

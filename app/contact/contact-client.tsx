@@ -3,10 +3,27 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowLeft, Mail, Phone, MapPin, Clock, Send, MessageCircle } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 
-export default function ContactClient() {
+function ContactFormInner() {
+    const searchParams = useSearchParams();
     const [formStatus, setFormStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+    const [defaultMessage, setDefaultMessage] = useState('');
+    const [defaultSubject, setDefaultSubject] = useState('');
+
+    useEffect(() => {
+        const inquiry = searchParams.get('inquiry');
+        const subject = searchParams.get('subject');
+        if (subject === 'wholesale') setDefaultSubject('wholesale');
+        if (inquiry) {
+            const skus = inquiry.split(',').filter(Boolean);
+            setDefaultMessage(
+                `I would like to inquire about the following catalog items:\n\n${skus.map((s, i) => `${i + 1}. SKU: ${s}`).join('\n')}\n\nPlease share pricing and availability.`
+            );
+            setDefaultSubject('wholesale');
+        }
+    }, [searchParams]);
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -210,6 +227,7 @@ export default function ContactClient() {
                                     <label className="block text-xs font-mono text-rudark-volt mb-2 uppercase">Subject *</label>
                                     <select
                                         required
+                                        defaultValue={defaultSubject}
                                         className="w-full bg-rudark-matte border border-rudark-grey rounded-sm p-3 text-white focus:border-rudark-volt focus:outline-none transition-colors"
                                     >
                                         <option value="">Select a topic...</option>
@@ -228,6 +246,7 @@ export default function ContactClient() {
                                     <textarea
                                         required
                                         rows={5}
+                                        defaultValue={defaultMessage}
                                         placeholder="How can we help you?"
                                         className="w-full bg-rudark-matte border border-rudark-grey rounded-sm p-3 text-white placeholder-gray-600 focus:border-rudark-volt focus:outline-none transition-colors resize-none"
                                     />
@@ -286,5 +305,13 @@ export default function ContactClient() {
 
             </div>
         </div>
+    );
+}
+
+export default function ContactClient() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-rudark-matte pt-32 flex items-center justify-center text-gray-500">Loading…</div>}>
+            <ContactFormInner />
+        </Suspense>
     );
 }

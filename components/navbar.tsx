@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ShoppingCart, Menu, X, Search, User } from 'lucide-react';
 import { useCart } from '@/context/cart-context';
 import { useState, useEffect, useRef } from 'react';
@@ -14,7 +15,10 @@ interface NavbarProps {
 }
 
 export default function Navbar({ categories = [], settings }: NavbarProps) {
+    const router = useRouter();
     const { totalItems } = useCart();
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [activeMenu, setActiveMenu] = useState<string | null>(null); // Restored state
 
@@ -108,6 +112,13 @@ export default function Navbar({ categories = [], settings }: NavbarProps) {
                                     </Link>
                                 </div>
 
+                                <Link
+                                    href="/catalog"
+                                    className="font-condensed font-bold text-lg tracking-widest uppercase text-white hover:text-rudark-volt transition-colors"
+                                >
+                                    Catalog
+                                </Link>
+
                                 <Link href="/about" className="font-condensed font-bold text-lg tracking-widest uppercase text-white hover:text-rudark-volt transition-colors">
                                     About Us
                                 </Link>
@@ -115,7 +126,12 @@ export default function Navbar({ categories = [], settings }: NavbarProps) {
 
                             {/* Actions */}
                             <div className="flex items-center space-x-6">
-                                <button className="text-gray-300 hover:text-white transition-colors">
+                                <button
+                                    type="button"
+                                    className="text-gray-300 hover:text-white transition-colors"
+                                    onClick={() => setSearchOpen(v => !v)}
+                                    aria-label="Search catalog"
+                                >
                                     <Search size={20} />
                                 </button>
                                 <button className="text-gray-300 hover:text-white transition-colors hidden md:block">
@@ -161,8 +177,15 @@ export default function Navbar({ categories = [], settings }: NavbarProps) {
                             <div className="p-6 space-y-6">
                                 {/* Main SHOP Link - Always visible */}
                                 <Link
+                                    href="/catalog"
+                                    className="block text-2xl font-condensed font-bold text-rudark-volt uppercase mb-4"
+                                    onClick={() => setIsMenuOpen(false)}
+                                >
+                                    Catalog →
+                                </Link>
+                                <Link
                                     href="/shop"
-                                    className="block text-2xl font-condensed font-bold text-rudark-volt uppercase mb-6"
+                                    className="block text-xl font-condensed font-bold text-white uppercase mb-6"
                                     onClick={() => setIsMenuOpen(false)}
                                 >
                                     Shop All →
@@ -209,6 +232,34 @@ export default function Navbar({ categories = [], settings }: NavbarProps) {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {searchOpen && (
+                    <div className="border-t border-rudark-grey bg-rudark-matte/98 px-4 py-3">
+                        <form
+                            className="max-w-7xl mx-auto flex gap-2"
+                            onSubmit={e => {
+                                e.preventDefault();
+                                if (searchQuery.trim()) {
+                                    router.push(`/catalog?q=${encodeURIComponent(searchQuery.trim())}`);
+                                    setSearchOpen(false);
+                                    setSearchQuery('');
+                                }
+                            }}
+                        >
+                            <input
+                                type="search"
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                placeholder="Search catalog…"
+                                className="flex-1 bg-rudark-carbon border border-rudark-grey text-white px-4 py-2 rounded-sm text-sm focus:border-rudark-volt focus:outline-none"
+                                autoFocus
+                            />
+                            <button type="submit" className="bg-rudark-volt text-black font-bold px-4 py-2 rounded-sm text-sm uppercase">
+                                Search
+                            </button>
+                        </form>
                     </div>
                 )}
 
