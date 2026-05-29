@@ -172,6 +172,7 @@ export default function FooterRefined({ categories = [] }: FooterProps) {
                         <h4 className="font-condensed font-bold text-lg uppercase mb-5 text-white tracking-wider">Company</h4>
                         <ul className="space-y-2.5">
                             <li><Link href="/about" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm uppercase">About Rud'Ark</Link></li>
+                            <li><Link href="/catalog" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm uppercase">B2B Catalog</Link></li>
                             <li><Link href="/privacy-policy" className="text-gray-400 hover:text-rudark-volt transition-colors text-sm uppercase">Privacy Policy</Link></li>
                         </ul>
 

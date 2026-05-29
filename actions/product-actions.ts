@@ -91,8 +91,12 @@ export async function saveProduct(productData: Partial<Product>) {
             }
         });
 
+        // Always maintain variant_skus as a flat string array so /api/stock can find variant stock
+        const variantSkus = (data.variants || []).map((v: any) => v.sku).filter(Boolean);
+
         const payload = {
             ...data,
+            variant_skus: variantSkus.length > 0 ? variantSkus : [],
             updated_at: FieldValue.serverTimestamp()
         };
 
@@ -108,7 +112,9 @@ export async function saveProduct(productData: Partial<Product>) {
             await adminDb.collection('products').add({
                 ...payload,
                 created_at: FieldValue.serverTimestamp(),
-                stock_status: 'IN_STOCK',
+                stock_status: data.stock_status || 'IN_STOCK',
+                stock_quantity: data.stock_quantity ?? 0,
+                reserved_quantity: data.reserved_quantity ?? 0,
                 sku: data.sku || `CUSTOM-${Date.now()}`
             });
         }

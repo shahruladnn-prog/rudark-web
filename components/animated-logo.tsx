@@ -187,11 +187,14 @@ export default function AnimatedLogo() {
                         </p>
                     </div>
 
-                    <div className="mt-12 group">
-                        <button className="relative overflow-hidden bg-rudark-volt text-black font-condensed font-bold text-xl px-12 py-5 uppercase tracking-wider transition-all hover:scale-105 shadow-[0_0_20px_rgba(212,242,34,0.2)] hover:shadow-[0_0_40px_rgba(212,242,34,0.5)]">
-                            <span className="relative z-10">Explore Collection</span>
+                    <div className="mt-12 flex flex-col items-center gap-4">
+                        <a href="/shop" className="group relative overflow-hidden bg-rudark-volt text-black font-condensed font-bold text-xl px-12 py-5 uppercase tracking-wider transition-all hover:scale-105 shadow-[0_0_20px_rgba(212,242,34,0.2)] hover:shadow-[0_0_40px_rgba(212,242,34,0.5)]">
+                            <span className="relative z-10">Shop All Gear</span>
                             <div className="absolute inset-0 bg-white/50 transform -skew-x-12 -translate-x-full group-hover:animate-shine" />
-                        </button>
+                        </a>
+                        <p className="font-mono text-[11px] text-gray-400 uppercase tracking-widest">
+                            Free Shipping Over RM200 · 7-Day Returns · Real-Time Stock
+                        </p>
                     </div>
                 </motion.div>
             </div>

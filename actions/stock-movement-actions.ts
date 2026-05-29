@@ -45,6 +45,10 @@ export async function recordStockMovement(movement: Omit<StockMovement, 'id' | '
             let newQuantity: number;
             let previousQuantity: number;
 
+            const reorderPoint = product.reorder_point ?? 5;
+            const deriveStatus = (qty: number) =>
+                qty === 0 ? 'OUT' : qty <= reorderPoint ? 'LOW' : 'IN_STOCK';
+
             // Check if updating variant or parent
             if (movement.variant_sku && product.variants && product.variants.length > 0) {
                 // Update specific variant
@@ -61,19 +65,24 @@ export async function recordStockMovement(movement: Omit<StockMovement, 'id' | '
                     throw new Error(`Cannot reduce stock below 0. Current: ${previousQuantity}, Adjustment: ${movement.quantity}`);
                 }
 
-                // Update variant in array
+                // Update variant stock + status
                 const updatedVariants = [...product.variants];
                 updatedVariants[variantIndex] = {
                     ...updatedVariants[variantIndex],
-                    stock_quantity: newQuantity
+                    stock_quantity: newQuantity,
+                    stock_status: deriveStatus(newQuantity),
                 };
 
-                // Calculate new parent total
+                // Calculate new parent total and status
                 const newParentTotal = updatedVariants.reduce((sum: number, v: any) => sum + (v.stock_quantity || 0), 0);
+                const allOut = updatedVariants.every((v: any) => v.stock_status === 'OUT' || v.stock_status === 'ARCHIVED');
+                const anyIn = updatedVariants.some((v: any) => v.stock_status === 'IN_STOCK');
+                const parentStatus = allOut ? 'OUT' : anyIn ? 'IN_STOCK' : 'LOW';
 
                 transaction.update(productRef, {
                     variants: updatedVariants,
                     stock_quantity: newParentTotal,
+                    stock_status: parentStatus,
                     updated_at: FieldValue.serverTimestamp()
                 });
 
@@ -88,6 +97,7 @@ export async function recordStockMovement(movement: Omit<StockMovement, 'id' | '
 
                 transaction.update(productRef, {
                     stock_quantity: newQuantity,
+                    stock_status: deriveStatus(newQuantity),
                     updated_at: FieldValue.serverTimestamp()
                 });
             }
@@ -135,6 +145,108 @@ export async function getStockMovements(limit = 50): Promise<StockMovement[]> {
         console.error('[getStockMovements] Error:', error);
         return [];
     }
+}
+
+/**
+ * Bulk stock adjustment — processes multiple product/variant rows in one call.
+ * mode: 'delta'  → qty is added/subtracted from current stock (Receive / Damage)
+ * mode: 'set'    → qty is the target absolute stock count
+ */
+export async function recordBulkStockMovements(
+    rows: Array<{
+        product_id: string;
+        product_name: string;
+        variant_sku?: string;
+        variant_label?: string;
+        qty: number;               // positive = add, negative = subtract (delta mode); or target (set mode)
+        current_stock: number;     // current value, used for set-mode delta calculation
+        mode: 'delta' | 'set';
+        type: 'RECEIVE' | 'ADJUST' | 'DAMAGE';
+    }>,
+    reference?: string,
+    reason?: string
+): Promise<{ success: boolean; processed: number; errors: string[] }> {
+    await requireRole(['owner', 'staff', 'warehouse']);
+
+    const errors: string[] = [];
+    let processed = 0;
+
+    for (const row of rows) {
+        const delta = row.mode === 'set' ? (row.qty - row.current_stock) : row.qty;
+        if (delta === 0) continue; // skip no-change rows
+
+        try {
+            const result = await adminDb.runTransaction(async (transaction) => {
+                const productRef = adminDb.collection('products').doc(row.product_id);
+                const productDoc = await transaction.get(productRef);
+                if (!productDoc.exists) throw new Error(`Product not found: ${row.product_name}`);
+
+                const product = productDoc.data()!;
+                let prevQty: number;
+                let newQty: number;
+
+                const rp = product.reorder_point ?? 5;
+                const deriveStatus = (qty: number) =>
+                    qty === 0 ? 'OUT' : qty <= rp ? 'LOW' : 'IN_STOCK';
+
+                if (row.variant_sku && product.variants?.length > 0) {
+                    const vi = product.variants.findIndex((v: any) => v.sku === row.variant_sku);
+                    if (vi === -1) throw new Error(`Variant not found: ${row.variant_sku}`);
+                    prevQty = product.variants[vi].stock_quantity || 0;
+                    newQty = prevQty + delta;
+                    if (newQty < 0) throw new Error(`Stock cannot go below 0 for ${row.variant_label || row.variant_sku}`);
+                    const updatedVariants = [...product.variants];
+                    updatedVariants[vi] = {
+                        ...updatedVariants[vi],
+                        stock_quantity: newQty,
+                        stock_status: deriveStatus(newQty),
+                    };
+                    const parentTotal = updatedVariants.reduce((s: number, v: any) => s + (v.stock_quantity || 0), 0);
+                    const allOut = updatedVariants.every((v: any) => v.stock_status === 'OUT' || v.stock_status === 'ARCHIVED');
+                    const anyIn = updatedVariants.some((v: any) => v.stock_status === 'IN_STOCK');
+                    const parentStatus = allOut ? 'OUT' : anyIn ? 'IN_STOCK' : 'LOW';
+                    transaction.update(productRef, {
+                        variants: updatedVariants,
+                        stock_quantity: parentTotal,
+                        stock_status: parentStatus,
+                        updated_at: FieldValue.serverTimestamp()
+                    });
+                } else {
+                    prevQty = product.stock_quantity || 0;
+                    newQty = prevQty + delta;
+                    if (newQty < 0) throw new Error(`Stock cannot go below 0 for ${row.product_name}`);
+                    transaction.update(productRef, {
+                        stock_quantity: newQty,
+                        stock_status: deriveStatus(newQty),
+                        updated_at: FieldValue.serverTimestamp()
+                    });
+                }
+
+                const movRef = adminDb.collection('stock_movements').doc();
+                transaction.set(movRef, {
+                    product_id: row.product_id,
+                    product_name: row.product_name,
+                    variant_sku: row.variant_sku,
+                    variant_label: row.variant_label,
+                    type: row.type,
+                    quantity: delta,
+                    previous_quantity: prevQty,
+                    new_quantity: newQty,
+                    reason: reason || undefined,
+                    reference: reference || undefined,
+                    created_at: FieldValue.serverTimestamp(),
+                });
+            });
+
+            processed++;
+        } catch (err: any) {
+            errors.push(err.message || `Error on ${row.variant_label || row.product_name}`);
+        }
+    }
+
+    revalidatePath('/admin/stock');
+    revalidatePath('/admin/stock/adjust');
+    return { success: errors.length === 0, processed, errors };
 }
 
 /**

@@ -375,6 +375,8 @@ export default function StockManagementPage() {
 
             {/* Quick links */}
             <div className="mt-4 flex flex-wrap gap-3 text-sm">
+                <Link href="/admin/stock/purchase-orders/new" className="text-emerald-700 font-semibold hover:underline">📋 New Purchase Order</Link>
+                <Link href="/admin/stock/purchase-orders" className="text-emerald-600 hover:underline">📦 All POs</Link>
                 <Link href="/admin/stock/receive" className="text-emerald-600 hover:underline">📥 Receive Stock</Link>
                 <Link href="/admin/stock/damage" className="text-red-500 hover:underline">⚠️ Record Damage</Link>
                 <Link href="/admin/stock/adjust" className="text-blue-600 hover:underline">+ Adjust</Link>

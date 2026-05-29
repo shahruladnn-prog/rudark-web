@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { Product } from '@/types';
 import ImageUploader from './image-uploader';
 import { 
-    Save, RefreshCw, ArrowLeft, Archive, Plus, Trash2, LayoutGrid, 
+    Save, RefreshCw, ArrowLeft, Archive, Plus, Trash2, LayoutGrid,
     Tag, DollarSign, Image as ImageIcon, Truck, Share2, Layers, History, Calendar,
-    Eye, EyeOff, Home, ChevronDown
+    Eye, EyeOff, Home, ChevronDown, Globe
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -344,7 +344,9 @@ export default function ProductForm({ initialData, categories = [] }: { initialD
                                             options: c,
                                             sku: `${formData.sku || 'SKU'}-${Object.values(c).join('-').toUpperCase()}`,
                                             price: formData.web_price || 0,
-                                            stock_status: 'IN_STOCK'
+                                            stock_status: 'IN_STOCK',
+                                            stock_quantity: 0,
+                                            reserved_quantity: 0,
                                         }));
                                         if (confirm("Regenerate variants? This will overwrite existing variant settings.")) {
                                             updateField('variants', newVariants);
@@ -410,15 +412,27 @@ export default function ProductForm({ initialData, categories = [] }: { initialD
                                 No variants generated yet. Define options above and click <strong>Generate</strong>.
                             </div>
                         ) : (
+                        <>
+                            {/* Image assignment tip */}
+                            <div className="mb-3 flex items-start gap-2 text-[10px] text-gray-500 bg-rudark-volt/5 border border-rudark-volt/20 px-3 py-2">
+                                <span className="text-rudark-volt flex-shrink-0">📷</span>
+                                <span>
+                                    <strong className="text-white">Assign variant images:</strong> Upload photos to the Media Gallery (above), then click a thumbnail in the <span className="text-rudark-volt">Image</span> column to assign it to that variant. The highlighted photo (volt border ✓) is the one that shows when that variant is selected on the product page.
+                                </span>
+                            </div>
                             <div className="overflow-x-auto border border-gray-800">
                                 <table className="w-full text-left border-collapse text-sm">
                                     <thead>
                                         <tr className="bg-[#121212] text-gray-500 font-bold text-[10px] uppercase tracking-wider border-b border-gray-800">
-                                            <th className="py-3 px-4">Variant Info</th>
-                                            <th className="py-3 px-4">SKU (Exact Match)</th>
+                                            <th className="py-3 px-4">Variant</th>
+                                            <th className="py-3 px-4">SKU</th>
                                             <th className="py-3 px-4 w-32">Price</th>
                                             <th className="py-3 px-4 w-32 text-rudark-volt">Promo</th>
                                             <th className="py-3 px-4 w-40">Status</th>
+                                            <th className="py-3 px-4 text-rudark-volt">
+                                                📷 Image
+                                                <span className="ml-1 text-gray-600 normal-case font-normal">(click to assign)</span>
+                                            </th>
                                             <th className="py-3 px-4 w-10"></th>
                                         </tr>
                                     </thead>
@@ -482,6 +496,43 @@ export default function ProductForm({ initialData, categories = [] }: { initialD
                                                         <option value="ARCHIVED">Hidden</option>
                                                     </select>
                                                 </td>
+                                                {/* Variant Image Assignment — click a thumbnail to assign */}
+                                                <td className="py-2 px-4">
+                                                    {(!formData.images || formData.images.length === 0) ? (
+                                                        <span className="text-gray-600 text-[9px] italic">Upload images above first</span>
+                                                    ) : (
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            {(formData.images as string[]).map((img, i) => {
+                                                                const isSelected = v.image === img;
+                                                                return (
+                                                                    <button
+                                                                        key={i}
+                                                                        type="button"
+                                                                        title={isSelected ? `Photo ${i + 1} — assigned (click to remove)` : `Assign Photo ${i + 1}`}
+                                                                        onClick={() => {
+                                                                            const vars = [...(formData.variants || [])];
+                                                                            vars[idx].image = isSelected ? undefined : img;
+                                                                            updateField('variants', vars);
+                                                                        }}
+                                                                        className={`relative w-10 h-10 flex-shrink-0 border-2 overflow-hidden transition-all ${
+                                                                            isSelected
+                                                                                ? 'border-rudark-volt ring-1 ring-rudark-volt'
+                                                                                : 'border-gray-700 opacity-40 hover:opacity-90 hover:border-gray-400'
+                                                                        }`}
+                                                                    >
+                                                                        <img src={img} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                                                                        {isSelected && (
+                                                                            <div className="absolute inset-0 bg-rudark-volt/20 flex items-center justify-center">
+                                                                                <span className="text-rudark-volt text-[10px] font-bold">✓</span>
+                                                                            </div>
+                                                                        )}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </td>
+
                                                 <td className="py-2 px-4 text-center">
                                                     <button
                                                         type="button"
@@ -500,11 +551,117 @@ export default function ProductForm({ initialData, categories = [] }: { initialD
                                     </tbody>
                                 </table>
                             </div>
-                        )}
+                        </>)}
                     </div>
 
-                    {/* Inventory Lots (PHASE 4) */}
+                    {/* Channel Stock Allocation */}
                     <div className="bg-[#1a1a1a] border border-gray-800 p-6 shadow-sm">
+                        <div className="flex items-center gap-2 mb-5 border-b border-gray-700/50 pb-3">
+                            <Globe size={14} className="text-rudark-volt" />
+                            <h3 className="text-white text-sm font-bold uppercase">Stock by Channel</h3>
+                            <span className="text-[10px] text-gray-600 ml-1 font-normal normal-case">Informational — manual tracking only</span>
+                        </div>
+
+                        {/* Fixed channel fields */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                            {[
+                                { label: '🌐 Website', field: 'stock_quantity', note: 'Online orders — auto-deducted on sale' },
+                                { label: '🛒 Shopee', field: 'stock_shopee', note: 'Shopee shop allocation' },
+                                { label: '📱 TikTok', field: 'stock_tiktok', note: 'TikTok shop allocation' },
+                                { label: '📦 Lazada', field: 'stock_lazada', note: 'Lazada allocation' },
+                            ].map(({ label, field, note }) => (
+                                <div key={field} className="space-y-1">
+                                    <label className="text-[10px] text-gray-400 uppercase tracking-widest font-mono">{label}</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={(formData as any)[field] ?? 0}
+                                        onChange={e => updateField(field as keyof Product, parseInt(e.target.value) || 0)}
+                                        className="w-full bg-[#121212] border border-gray-700 text-white px-3 py-2 text-sm font-mono focus:border-rudark-volt focus:outline-none"
+                                    />
+                                    <p className="text-[9px] text-gray-600">{note}</p>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Physical store / pop-up locations */}
+                        <div>
+                            <div className="flex items-center justify-between mb-3">
+                                <label className="text-[10px] text-gray-400 uppercase tracking-widest font-mono">🏪 Physical Locations</label>
+                                <button
+                                    type="button"
+                                    onClick={() => updateField('store_allocations', [...(formData.store_allocations || []), { store_name: '', qty: 0 }])}
+                                    className="text-[10px] text-rudark-volt hover:text-white uppercase font-bold flex items-center gap-1"
+                                >
+                                    <Plus size={10} /> Add Location
+                                </button>
+                            </div>
+                            {(formData.store_allocations || []).length === 0 ? (
+                                <p className="text-[10px] text-gray-600 italic">No physical locations added yet.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {(formData.store_allocations || []).map((loc, i) => (
+                                        <div key={i} className="flex gap-2 items-center">
+                                            <input
+                                                type="text"
+                                                value={loc.store_name}
+                                                onChange={e => {
+                                                    const locs = [...(formData.store_allocations || [])];
+                                                    locs[i] = { ...locs[i], store_name: e.target.value };
+                                                    updateField('store_allocations', locs);
+                                                }}
+                                                placeholder="Location name (e.g. Gopeng Store)"
+                                                className="flex-1 bg-[#121212] border border-gray-700 text-white px-3 py-1.5 text-xs focus:border-rudark-volt focus:outline-none"
+                                            />
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={loc.qty}
+                                                onChange={e => {
+                                                    const locs = [...(formData.store_allocations || [])];
+                                                    locs[i] = { ...locs[i], qty: parseInt(e.target.value) || 0 };
+                                                    updateField('store_allocations', locs);
+                                                }}
+                                                className="w-20 bg-[#121212] border border-gray-700 text-white px-2 py-1.5 text-xs font-mono focus:border-rudark-volt focus:outline-none text-center"
+                                            />
+                                            <span className="text-[9px] text-gray-600">units</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const locs = [...(formData.store_allocations || [])];
+                                                    locs.splice(i, 1);
+                                                    updateField('store_allocations', locs);
+                                                }}
+                                                className="text-gray-700 hover:text-red-500 transition-colors"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Total summary */}
+                        {(() => {
+                            const web = (formData as any).stock_quantity ?? 0;
+                            const shopee = (formData as any).stock_shopee ?? 0;
+                            const tiktok = (formData as any).stock_tiktok ?? 0;
+                            const lazada = (formData as any).stock_lazada ?? 0;
+                            const physical = (formData.store_allocations || []).reduce((s, l) => s + (l.qty || 0), 0);
+                            const total = web + shopee + tiktok + lazada + physical;
+                            return (
+                                <div className="mt-4 pt-4 border-t border-gray-800 flex justify-end">
+                                    <span className="text-xs text-gray-500 font-mono">
+                                        Total allocated: <span className="text-white font-bold">{total}</span> units
+                                    </span>
+                                </div>
+                            );
+                        })()}
+                    </div>
+
+                    {/* Inventory Lots (PHASE 4) — hidden until implemented */}
+                    <div className="hidden bg-[#1a1a1a] border border-gray-800 p-6 shadow-sm">
                         <div className="flex items-center justify-between mb-6 border-b border-gray-700/50 pb-3">
                             <div className="flex items-center gap-2">
                                 <Layers size={16} className="text-rudark-volt" />

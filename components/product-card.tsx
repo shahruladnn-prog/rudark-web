@@ -69,21 +69,29 @@ export default function ProductCard({ product }: { product: Product }) {
                     {product.category_slug?.replace(/-/g, ' ')}
                 </p>
 
-                <div className="mt-auto flex items-center gap-3">
-                    {hasPromo ? (
-                        <>
-                            <span className="text-lg font-mono font-bold text-rudark-volt">
-                                RM {displayPrice?.toFixed(2)}
-                            </span>
-                            <span className="text-sm font-mono text-gray-500 line-through decoration-gray-500">
+                <div className="mt-auto">
+                    <div className="flex items-center gap-3 mb-2">
+                        {hasPromo ? (
+                            <>
+                                <span className="text-lg font-mono font-bold text-rudark-volt">
+                                    RM {displayPrice?.toFixed(2)}
+                                </span>
+                                <span className="text-sm font-mono text-gray-500 line-through decoration-gray-500">
+                                    RM {product.web_price?.toFixed(2)}
+                                </span>
+                            </>
+                        ) : (
+                            <span className="text-lg font-mono font-bold text-white">
                                 RM {product.web_price?.toFixed(2)}
                             </span>
-                        </>
-                    ) : (
-                        <span className="text-lg font-mono font-bold text-white">
-                            RM {product.web_price?.toFixed(2)}
-                        </span>
-                    )}
+                        )}
+                    </div>
+                    {product.review_count && product.review_count > 0 ? (
+                        <div className="flex items-center gap-1">
+                            <span className="text-rudark-volt text-xs">{'★'.repeat(Math.round(product.average_rating || 0))}{'☆'.repeat(5 - Math.round(product.average_rating || 0))}</span>
+                            <span className="font-mono text-[10px] text-gray-500">({product.review_count})</span>
+                        </div>
+                    ) : null}
                 </div>
             </div>
         </motion.div>

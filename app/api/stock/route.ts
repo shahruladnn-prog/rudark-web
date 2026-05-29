@@ -47,30 +47,36 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        // To support variant SKUs, we check missing SKUs against products that might have them.
-        // DANGER: We must NOT do a full collection scan here as it's a DoS vector.
-        // We will attempt a more targeted query for missing SKUs.
+        // Look up variant SKUs for any not found as parent products
         const missingSkus = skus.filter(s => typeof stocks[s] === 'undefined');
-        
+
         if (missingSkus.length > 0) {
-            // OPTIMIZATION: Instead of scanning everything, we search by variant_skus array
-            // This assumes the product documents have a 'variant_skus' string array field.
-            // If they don't, we should add one during sync.
+            // Primary: query via variant_skus index (fast, populated on save)
             const variantSkuChunks = chunkArray(missingSkus, 30);
-            
             for (const chunk of variantSkuChunks) {
                 const snapshot = await adminDb.collection('products')
                     .where('variant_skus', 'array-contains-any', chunk)
                     .get();
-                    
                 for (const doc of snapshot.docs) {
                     const product = doc.data();
-                    if (product.variants && Array.isArray(product.variants)) {
-                        for (const variant of product.variants) {
-                            if (missingSkus.includes(variant.sku)) {
-                                const available = (variant.stock_quantity || 0) - (variant.reserved_quantity || 0);
-                                stocks[variant.sku] = Math.max(0, available);
-                            }
+                    for (const variant of (product.variants || [])) {
+                        if (missingSkus.includes(variant.sku)) {
+                            stocks[variant.sku] = Math.max(0, (variant.stock_quantity || 0) - (variant.reserved_quantity || 0));
+                        }
+                    }
+                }
+            }
+
+            // Fallback: scan all products for any still-missing SKUs
+            // (covers manually-created products before variant_skus field was added)
+            const stillMissing = missingSkus.filter(s => typeof stocks[s] === 'undefined');
+            if (stillMissing.length > 0) {
+                const allSnap = await adminDb.collection('products').get();
+                for (const doc of allSnap.docs) {
+                    const product = doc.data();
+                    for (const variant of (product.variants || [])) {
+                        if (stillMissing.includes(variant.sku)) {
+                            stocks[variant.sku] = Math.max(0, (variant.stock_quantity || 0) - (variant.reserved_quantity || 0));
                         }
                     }
                 }

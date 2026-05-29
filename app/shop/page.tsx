@@ -2,9 +2,8 @@ import type { Metadata } from 'next';
 import { adminDb } from '@/lib/firebase-admin';
 import { Product } from '@/types';
 import { serializeDocs } from '@/lib/serialize-firestore';
+import { getCategories } from '@/actions/category-actions';
 import ShopClient from './shop-client';
-
-// Statically generated — rebuilt via revalidatePath() from admin actions
 
 export const metadata: Metadata = {
     title: "Shop | Rud'Ark PRO SHOP",
@@ -32,9 +31,7 @@ async function getProducts(): Promise<Product[]> {
             .where('is_public', '==', true)
             .where('stock_status', '!=', 'ARCHIVED')
             .get();
-
         if (snapshot.empty) return [];
-
         return serializeDocs<Product>(snapshot);
     } catch (error) {
         console.error('Error fetching products:', error);
@@ -42,36 +39,22 @@ async function getProducts(): Promise<Product[]> {
     }
 }
 
-async function getCategories() {
-    try {
-        const snapshot = await adminDb.collection('categories').get();
-        if (snapshot.empty) return [];
-
-        const categories = snapshot.docs.map(doc => ({
-            name: doc.data().name,
-            slug: doc.data().slug,
-            product_count: 0
-        }));
-
-        // Get product counts per category
-        const products = await getProducts();
-        categories.forEach(cat => {
-            cat.product_count = products.filter(p => p.category_slug === cat.slug).length;
-        });
-
-        // Sort by product count descending
-        return categories.sort((a, b) => b.product_count - a.product_count);
-    } catch (error) {
-        console.error('Error fetching categories:', error);
-        return [];
-    }
-}
-
 export default async function ShopPage() {
     const [products, categories] = await Promise.all([
         getProducts(),
-        getCategories()
+        getCategories(),
     ]);
 
-    return <ShopClient initialProducts={products} categories={categories} />;
+    // Add product counts to categories
+    const allCategories = (categories as any[]).map(cat => ({
+        ...cat,
+        product_count: products.filter(p => p.category_slug === cat.slug).length,
+    }));
+
+    return (
+        <ShopClient
+            initialProducts={products}
+            allCategories={allCategories as any[]}
+        />
+    );
 }

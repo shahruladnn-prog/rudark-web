@@ -7,9 +7,10 @@ import { ArrowRight, ChevronRight } from 'lucide-react';
 interface MegaMenuProps {
     isOpen: boolean;
     categories: any[];
+    onClose: () => void;
 }
 
-export default function MegaMenu({ isOpen, categories }: MegaMenuProps) {
+export default function MegaMenu({ isOpen, categories, onClose }: MegaMenuProps) {
     const [activeTab, setActiveTab] = useState<string | null>(null);
 
     // Set first category as active by default when menu opens
@@ -31,7 +32,7 @@ export default function MegaMenu({ isOpen, categories }: MegaMenuProps) {
                 style={{ top: '100%' }}
             >
                 <div className="max-w-7xl mx-auto p-12 text-center">
-                    <Link href="/shop" className="text-2xl font-condensed font-bold text-rudark-volt hover:text-white uppercase">
+                    <Link href="/shop" onClick={onClose} className="text-2xl font-condensed font-bold text-rudark-volt hover:text-white uppercase">
                         Browse All Products →
                     </Link>
                     <p className="text-gray-500 mt-4 text-sm">Categories loading or not available</p>
@@ -85,6 +86,7 @@ export default function MegaMenu({ isOpen, categories }: MegaMenuProps) {
                                 </h2>
                                 <Link
                                     href={`/shop/${activeCategory.slug}`}
+                                    onClick={onClose}
                                     className="flex items-center gap-2 text-rudark-volt hover:text-white transition-colors font-bold uppercase text-sm tracking-widest"
                                 >
                                     View All <ArrowRight size={16} />
@@ -96,6 +98,7 @@ export default function MegaMenu({ isOpen, categories }: MegaMenuProps) {
                                     <Link
                                         key={sub.slug}
                                         href={`/shop/${activeCategory.slug}/${sub.slug}`}
+                                        onClick={onClose}
                                         className="group block p-4 rounded-sm hover:bg-rudark-matte transition-colors border border-transparent hover:border-rudark-grey/50"
                                     >
                                         <h3 className="font-bold text-white uppercase mb-2 group-hover:text-rudark-volt transition-colors">

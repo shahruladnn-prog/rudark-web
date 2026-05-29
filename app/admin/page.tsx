@@ -156,6 +156,32 @@ export default function AdminDashboard() {
                 <DashboardSkeleton />
             ) : (
                 <>
+                    {/* Stock Alert Banner */}
+                    {(stats.stock.low > 0 || stats.stock.out > 0) && (
+                        <div className={`mb-5 flex items-center justify-between px-4 py-3 rounded-lg border ${
+                            stats.stock.out > 0
+                                ? 'bg-red-50 border-red-200'
+                                : 'bg-amber-50 border-amber-200'
+                        }`}>
+                            <div className="flex items-center gap-2.5">
+                                <AlertTriangle size={16} className={stats.stock.out > 0 ? 'text-red-500' : 'text-amber-500'} />
+                                <span className="text-sm font-medium text-gray-800">
+                                    {stats.stock.out > 0 && (
+                                        <span className="text-red-600 font-bold">{stats.stock.out} out of stock</span>
+                                    )}
+                                    {stats.stock.out > 0 && stats.stock.low > 0 && <span className="text-gray-400 mx-2">·</span>}
+                                    {stats.stock.low > 0 && (
+                                        <span className="text-amber-600 font-bold">{stats.stock.low} low stock</span>
+                                    )}
+                                    <span className="text-gray-500 ml-1 font-normal"> — restock soon</span>
+                                </span>
+                            </div>
+                            <Link href="/admin/stock" className="text-xs font-semibold text-blue-600 hover:underline whitespace-nowrap">
+                                View Stock →
+                            </Link>
+                        </div>
+                    )}
+
                     {/* Today stats */}
                     <div className="grid grid-cols-2 gap-3 mb-6">
                         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">

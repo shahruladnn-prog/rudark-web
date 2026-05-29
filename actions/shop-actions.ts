@@ -38,14 +38,15 @@ export async function getProductsBySlug(slugs: string[]) {
                     return {
                         categoryName: catData.name,
                         subcategoryName,
+                        subcategories: subcategorySlug ? [] : (catData.subcategories || []),
                         markup_amount: catData.markup_amount,
                         handling_fee: catData.handling_fee
                     };
                 }
-                return { categoryName: categorySlug.toUpperCase().replace('-', ' '), subcategoryName: null };
+                return { categoryName: categorySlug.toUpperCase().replace('-', ' '), subcategoryName: null, subcategories: [] };
             } catch (e) {
                 console.error('Error fetching category:', e);
-                return { categoryName: categorySlug.toUpperCase().replace('-', ' '), subcategoryName: null };
+                return { categoryName: categorySlug.toUpperCase().replace('-', ' '), subcategoryName: null, subcategories: [] };
             }
         })();
 
@@ -73,7 +74,7 @@ export async function getProductsBySlug(slugs: string[]) {
 
         // 3. Run in Parallel with Timeouts
         const [catDetails, rawProducts] = await Promise.all([
-            promiseTimeout(catDetailsPromise, 5000, { categoryName: 'Loading...', subcategoryName: null }),
+            promiseTimeout(catDetailsPromise, 5000, { categoryName: 'Loading...', subcategoryName: null, subcategories: [] }),
             promiseTimeout(productsPromise, 8000, [])
         ]);
 
@@ -91,5 +92,23 @@ export async function getProductsBySlug(slugs: string[]) {
     } catch (error) {
         console.error('CRITICAL ERROR in getProductsBySlug:', error);
         return { products: [], categoryName: null };
+    }
+}
+
+export async function getRelatedProducts(categorySlug: string, excludeSku: string, limit = 4): Promise<Product[]> {
+    try {
+        const snapshot = await adminDb.collection('products')
+            .where('is_public', '==', true)
+            .where('category_slug', '==', categorySlug)
+            .limit(limit + 1)
+            .get();
+
+        return snapshot.docs
+            .map(doc => ({ id: doc.id, ...sanitizeFirestoreData(doc.data()) } as Product))
+            .filter(p => p.sku !== excludeSku)
+            .slice(0, limit);
+    } catch (error) {
+        console.error('Error fetching related products:', error);
+        return [];
     }
 }

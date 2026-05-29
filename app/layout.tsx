@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Teko, Montserrat, Black_Ops_One } from "next/font/google";
+import { Teko, Montserrat, Black_Ops_One } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "@/context/cart-context";
 import { CatalogInquiryProvider } from "@/context/catalog-inquiry-context";
@@ -12,8 +12,6 @@ import { Analytics } from '@vercel/analytics/react';
 
 import { getCategories } from '@/actions/category-actions';
 import { getSettings } from '@/actions/settings-actions';
-
-const inter = Inter({ subsets: ["latin"] });
 
 const teko = Teko({
   subsets: ["latin"],

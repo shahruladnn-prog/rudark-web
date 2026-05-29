@@ -1,138 +1,94 @@
 'use server';
-import { requireRole } from '@/actions/session-actions';
 
-import { loyverse } from '@/lib/loyverse';
+import { adminDb } from '@/lib/firebase-admin';
 
 /**
- * Check real-time stock from Loyverse API
- * Called when user clicks "Add to Cart" or "Calculate Shipping"
+ * Check stock for a single SKU against Firebase (website source of truth).
+ * No Loyverse API call — Firebase IS the source of truth for online stock.
+ * No admin role required — this is called from the customer-facing Add to Cart button.
  */
 export async function checkLoyverseStock(sku: string, requestedQuantity: number) {
-    await requireRole(['owner', 'staff', 'warehouse']);
-
-    try {
-        // 1. Get items to find variant_id by SKU
-        const itemsData = await loyverse.getItems();
-        let variantId: string | null = null;
-
-        for (const item of itemsData.items) {
-            for (const variant of item.variants) {
-                if (variant.sku === sku) {
-                    variantId = variant.variant_id;
-                    break;
-                }
-            }
-            if (variantId) break;
-        }
-
-        if (!variantId) {
-            return {
-                available: false,
-                error: 'Product not found in inventory system',
-                currentStock: 0
-            };
-        }
-
-        // 2. Get current stock level
-        const inventoryData = await loyverse.getInventory();
-        const stockItem = inventoryData.inventory_levels.find(
-            (inv: any) => inv.variant_id === variantId
-        );
-
-        const currentStock = stockItem?.in_stock || 0;
-
-        // 3. Check if requested quantity is available
-        if (currentStock < requestedQuantity) {
-            return {
-                available: false,
-                error: `Only ${currentStock} units available`,
-                currentStock,
-                requested: requestedQuantity
-            };
-        }
-
-        return {
-            available: true,
-            currentStock,
-            requested: requestedQuantity
-        };
-
-    } catch (error) {
-        console.error('[Loyverse Stock Check] Error:', error);
-        return {
-            available: false,
-            error: 'Unable to check stock availability',
-            currentStock: 0
-        };
-    }
+    return checkFirestoreStock(sku, requestedQuantity);
 }
 
 /**
- * Batch check stock for multiple items (for cart/checkout)
+ * Batch check stock for multiple items (used at checkout).
+ * Firestore-only, no admin role required.
  */
 export async function checkMultipleStock(items: Array<{ sku: string; quantity: number; name: string }>) {
-    await requireRole(['owner', 'staff', 'warehouse']);
+    const results = [];
+    const errors = [];
 
+    for (const item of items) {
+        const check = await checkFirestoreStock(item.sku, item.quantity);
+        if (!check.available) {
+            errors.push(`${item.name}: Only ${check.currentStock} available (requested ${item.quantity})`);
+        }
+        results.push({
+            sku: item.sku,
+            name: item.name,
+            currentStock: check.currentStock,
+            requested: item.quantity,
+            available: check.available,
+        });
+    }
+
+    return { success: errors.length === 0, results, errors };
+}
+
+/**
+ * Core Firestore stock check.
+ * 1. Checks parent product by SKU (for simple/non-variant products).
+ * 2. If not found as parent, searches variants across all products.
+ */
+async function checkFirestoreStock(sku: string, requestedQuantity: number) {
     try {
-        // 1. Build SKU → variant_id map
-        const itemsData = await loyverse.getItems();
-        const skuToVariantMap = new Map<string, string>();
+        // 1. Check if SKU matches a parent product directly
+        const parentSnap = await adminDb.collection('products')
+            .where('sku', '==', sku)
+            .limit(1)
+            .get();
 
-        itemsData.items.forEach((item: any) => {
-            item.variants.forEach((v: any) => {
-                if (v.sku) {
-                    skuToVariantMap.set(v.sku, v.variant_id);
-                }
-            });
-        });
+        if (!parentSnap.empty) {
+            const product = parentSnap.docs[0].data();
 
-        // 2. Get all inventory levels
-        const inventoryData = await loyverse.getInventory();
-        const inventoryMap = new Map<string, number>();
-
-        inventoryData.inventory_levels.forEach((inv: any) => {
-            inventoryMap.set(inv.variant_id, inv.in_stock);
-        });
-
-        // 3. Check each item
-        const results = [];
-        const errors = [];
-
-        for (const item of items) {
-            const variantId = skuToVariantMap.get(item.sku);
-
-            if (!variantId) {
-                errors.push(`${item.name}: Not found in inventory`);
-                continue;
+            // If product has variants, the SKU should be a variant SKU — fall through to variant check
+            if (!product.variants || product.variants.length === 0) {
+                const available = Math.max(0, (product.stock_quantity ?? 0) - (product.reserved_quantity ?? 0));
+                return {
+                    available: available >= requestedQuantity,
+                    currentStock: available,
+                    requested: requestedQuantity,
+                };
             }
-
-            const currentStock = inventoryMap.get(variantId) || 0;
-
-            if (currentStock < item.quantity) {
-                errors.push(`${item.name}: Only ${currentStock} available (requested ${item.quantity})`);
-            }
-
-            results.push({
-                sku: item.sku,
-                name: item.name,
-                currentStock,
-                requested: item.quantity,
-                available: currentStock >= item.quantity
-            });
         }
 
-        return {
-            success: errors.length === 0,
-            results,
-            errors
-        };
+        // 2. Search variant SKUs
+        // Fetch only products that have variants (more efficient: query by is_public but scan variants)
+        const allSnap = await adminDb.collection('products')
+            .where('is_public', '==', true)
+            .get();
+
+        for (const doc of allSnap.docs) {
+            const product = doc.data();
+            const variant = (product.variants || []).find((v: any) => v.sku === sku);
+            if (variant) {
+                const available = Math.max(0, (variant.stock_quantity ?? 0) - (variant.reserved_quantity ?? 0));
+                return {
+                    available: available >= requestedQuantity,
+                    currentStock: available,
+                    requested: requestedQuantity,
+                };
+            }
+        }
+
+        // 3. SKU not found anywhere — treat as unavailable
+        console.warn(`[checkFirestoreStock] SKU not found: ${sku}`);
+        return { available: false, currentStock: 0, requested: requestedQuantity };
 
     } catch (error) {
-        console.error('[Batch Stock Check] Error:', error);
-        return {
-            success: false,
-            results: [],
-            errors: ['Unable to check stock availability']
-        };
+        console.error('[checkFirestoreStock] Error:', error);
+        // Fail open: if we can't check, allow the sale (checkout has a second validation)
+        return { available: true, currentStock: 99, requested: requestedQuantity };
     }
 }

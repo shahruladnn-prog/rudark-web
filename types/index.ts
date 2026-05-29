@@ -93,6 +93,13 @@ export interface Product {
 
     category?: string;
 
+    // Reviews (denormalized for card display)
+    average_rating?: number;
+    review_count?: number;
+
+    // Multi-channel stock allocations (manual, for auditing — not auto-synced)
+    store_allocations?: { store_name: string; qty: number }[];
+
     // Catalog display (B2B / showcase)
     show_in_catalog?: boolean;
     catalog_featured?: boolean;

@@ -120,6 +120,11 @@ export default function CategoryForm({ initialData, id }: CategoryFormProps) {
                             className="w-full bg-rudark-matte text-white px-4 py-3 border border-rudark-grey focus:border-rudark-volt focus:outline-none placeholder-gray-600 font-mono text-sm"
                             placeholder="e.g. apparel"
                         />
+                        {id && id !== 'new' && (
+                            <p className="text-xs text-orange-400 bg-orange-950/40 border border-orange-900/50 px-3 py-2">
+                                ⚠ Changing this slug will break all products assigned to it — their category links will stop working until each product is re-saved with the new slug.
+                            </p>
+                        )}
                     </div>
                 </div>
 
@@ -154,13 +159,18 @@ export default function CategoryForm({ initialData, id }: CategoryFormProps) {
                                     className="bg-rudark-matte text-white px-3 py-2 border border-rudark-grey focus:border-rudark-volt focus:outline-none text-sm uppercase"
                                     placeholder="Name (e.g. Shirts)"
                                 />
-                                <input
-                                    type="text"
-                                    value={sub.slug}
-                                    onChange={(e) => handleSubcategoryChange(i, 'slug', e.target.value)}
-                                    className="bg-rudark-matte text-gray-400 px-3 py-2 border border-rudark-grey focus:border-rudark-volt focus:outline-none text-sm font-mono"
-                                    placeholder="slug"
-                                />
+                                <div>
+                                    <input
+                                        type="text"
+                                        value={sub.slug}
+                                        onChange={(e) => handleSubcategoryChange(i, 'slug', e.target.value)}
+                                        className="w-full bg-rudark-matte text-gray-400 px-3 py-2 border border-rudark-grey focus:border-rudark-volt focus:outline-none text-sm font-mono"
+                                        placeholder="slug"
+                                    />
+                                    {id && id !== 'new' && sub.slug && (
+                                        <p className="text-[10px] text-orange-400 mt-1">⚠ Editing slug breaks linked products</p>
+                                    )}
+                                </div>
                             </div>
                             <button type="button" onClick={() => removeSubcategory(i)} className="p-2 text-gray-500 hover:text-red-500">
                                 <Trash2 size={16} />

@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { ShoppingCart, Menu, X, Search, User } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
+import { ShoppingCart, Menu, X, Search, User, ChevronRight } from 'lucide-react';
 import { useCart } from '@/context/cart-context';
 import { useState, useEffect, useRef } from 'react';
 import MegaMenu from './mega-menu';
@@ -16,13 +16,15 @@ interface NavbarProps {
 
 export default function Navbar({ categories = [], settings }: NavbarProps) {
     const router = useRouter();
+    const pathname = usePathname();
     const { totalItems } = useCart();
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [activeMenu, setActiveMenu] = useState<string | null>(null); // Restored state
+    const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
     const [scrolled, setScrolled] = useState(false);
+    const [expandedCat, setExpandedCat] = useState<string | null>(null);
     const closeTimeout = useRef<NodeJS.Timeout | null>(null);
 
     const handleMouseEnter = (menu: string) => {
@@ -55,6 +57,18 @@ export default function Navbar({ categories = [], settings }: NavbarProps) {
         };
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // Escape key closes mega menu and mobile drawer
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setActiveMenu(null);
+                setIsMenuOpen(false);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
     return (
@@ -102,25 +116,25 @@ export default function Navbar({ categories = [], settings }: NavbarProps) {
                                 >
                                     <Link
                                         href="/shop"
-                                        className={`font-condensed font-bold text-lg tracking-widest uppercase transition-colors relative h-full flex items-center ${activeMenu === 'shop' ? 'text-rudark-volt' : 'text-white hover:text-rudark-volt'
+                                        onClick={() => setActiveMenu(null)}
+                                        className={`font-condensed font-bold text-lg tracking-widest uppercase transition-colors relative h-full flex items-center ${activeMenu === 'shop' || pathname.startsWith('/shop') ? 'text-rudark-volt' : 'text-white hover:text-rudark-volt'
                                             }`}
                                     >
                                         Shop
-                                        {activeMenu === 'shop' && (
+                                        {(activeMenu === 'shop' || pathname.startsWith('/shop')) && (
                                             <span className="absolute bottom-0 left-0 w-full h-1 bg-rudark-volt shadow-[0_0_10px_rgba(212,242,34,0.8)]" />
                                         )}
                                     </Link>
                                 </div>
 
                                 <Link
-                                    href="/catalog"
-                                    className="font-condensed font-bold text-lg tracking-widest uppercase text-white hover:text-rudark-volt transition-colors"
+                                    href="/about"
+                                    className={`font-condensed font-bold text-lg tracking-widest uppercase transition-colors relative h-full flex items-center ${pathname === '/about' ? 'text-rudark-volt' : 'text-white hover:text-rudark-volt'}`}
                                 >
-                                    Catalog
-                                </Link>
-
-                                <Link href="/about" className="font-condensed font-bold text-lg tracking-widest uppercase text-white hover:text-rudark-volt transition-colors">
                                     About Us
+                                    {pathname === '/about' && (
+                                        <span className="absolute bottom-0 left-0 w-full h-1 bg-rudark-volt shadow-[0_0_10px_rgba(212,242,34,0.8)]" />
+                                    )}
                                 </Link>
                             </div>
 
@@ -153,6 +167,7 @@ export default function Navbar({ categories = [], settings }: NavbarProps) {
                     <MegaMenu
                         isOpen={activeMenu === 'shop'}
                         categories={categories}
+                        onClose={() => setActiveMenu(null)}
                     />
                 </nav>
 
@@ -174,61 +189,70 @@ export default function Navbar({ categories = [], settings }: NavbarProps) {
                                 </button>
                             </div>
 
-                            <div className="p-6 space-y-6">
-                                {/* Main SHOP Link - Always visible */}
-                                <Link
-                                    href="/catalog"
-                                    className="block text-2xl font-condensed font-bold text-rudark-volt uppercase mb-4"
-                                    onClick={() => setIsMenuOpen(false)}
-                                >
-                                    Catalog →
-                                </Link>
+                            <div className="p-6 space-y-2">
+                                {/* Shop All */}
                                 <Link
                                     href="/shop"
-                                    className="block text-xl font-condensed font-bold text-white uppercase mb-6"
+                                    className="block text-xl font-condensed font-bold text-white uppercase py-3 hover:text-rudark-volt transition-colors"
                                     onClick={() => setIsMenuOpen(false)}
                                 >
                                     Shop All →
                                 </Link>
 
-                                {/* Categories with Subcategories */}
+                                {/* Categories with Accordion Subcategories */}
                                 {categories.length > 0 ? (
-                                    categories.map((cat: any) => (
-                                        <div key={cat.slug || cat.id}>
-                                            <Link
-                                                href={`/shop/${cat.slug}`}
-                                                className="text-rudark-volt font-condensed font-bold text-lg uppercase mb-3 block hover:text-white"
-                                                onClick={() => setIsMenuOpen(false)}
-                                            >
-                                                {cat.name || cat.category_name}
-                                            </Link>
-                                            {(cat.subcategories && cat.subcategories.length > 0) && (
-                                                <ul className="space-y-3 border-l border-rudark-grey/30 pl-4 mb-4">
-                                                    {cat.subcategories.map((sub: any) => (
-                                                        <li key={sub.slug}>
-                                                            <Link
-                                                                href={`/shop/${cat.slug}/${sub.slug}`}
-                                                                className="block text-gray-300 text-sm hover:text-white py-1 uppercase"
-                                                                onClick={() => setIsMenuOpen(false)}
-                                                            >
-                                                                {sub.name}
-                                                            </Link>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            )}
-                                        </div>
-                                    ))
+                                    categories.map((cat: any) => {
+                                        const catKey = cat.slug || cat.id;
+                                        const isExpanded = expandedCat === catKey;
+                                        const hasSubs = cat.subcategories && cat.subcategories.length > 0;
+                                        return (
+                                            <div key={catKey} className="border-b border-rudark-grey/20 last:border-0">
+                                                <div className="flex items-center justify-between">
+                                                    <Link
+                                                        href={`/shop/${cat.slug}`}
+                                                        className="flex-1 text-rudark-volt font-condensed font-bold text-lg uppercase py-3 hover:text-white transition-colors"
+                                                        onClick={() => setIsMenuOpen(false)}
+                                                    >
+                                                        {cat.name || cat.category_name}
+                                                    </Link>
+                                                    {hasSubs && (
+                                                        <button
+                                                            onClick={() => setExpandedCat(isExpanded ? null : catKey)}
+                                                            className="p-2 text-gray-400 hover:text-rudark-volt transition-colors"
+                                                            aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                                                        >
+                                                            <ChevronRight size={16} className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {hasSubs && isExpanded && (
+                                                    <ul className="pb-3 space-y-2 border-l border-rudark-grey/30 pl-4 ml-1">
+                                                        {cat.subcategories.map((sub: any) => (
+                                                            <li key={sub.slug}>
+                                                                <Link
+                                                                    href={`/shop/${cat.slug}/${sub.slug}`}
+                                                                    className="block text-gray-300 text-sm hover:text-rudark-volt py-1 uppercase transition-colors"
+                                                                    onClick={() => setIsMenuOpen(false)}
+                                                                >
+                                                                    {sub.name}
+                                                                </Link>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                            </div>
+                                        );
+                                    })
                                 ) : (
-                                    <div className="text-gray-500 text-sm">Loading categories...</div>
+                                    <div className="text-gray-500 text-sm py-3">Loading categories...</div>
                                 )}
 
                                 {/* Other Pages */}
-                                <div className="pt-6 border-t border-rudark-grey/30 space-y-4">
-                                    <Link href="/about" className="block text-lg font-condensed font-bold text-white uppercase hover:text-rudark-volt" onClick={() => setIsMenuOpen(false)}>About Us</Link>
-                                    <Link href="/contact" className="block text-lg font-condensed font-bold text-white uppercase hover:text-rudark-volt" onClick={() => setIsMenuOpen(false)}>Contact</Link>
-                                    <Link href="/warranty" className="block text-lg font-condensed font-bold text-white uppercase hover:text-rudark-volt" onClick={() => setIsMenuOpen(false)}>Warranty</Link>
-                                    <Link href="/returns" className="block text-lg font-condensed font-bold text-white uppercase hover:text-rudark-volt" onClick={() => setIsMenuOpen(false)}>Returns</Link>
+                                <div className="pt-6 border-t border-rudark-grey/30 space-y-4 mt-4">
+                                    <Link href="/about" className="block text-lg font-condensed font-bold text-white uppercase hover:text-rudark-volt transition-colors" onClick={() => setIsMenuOpen(false)}>About Us</Link>
+                                    <Link href="/contact" className="block text-lg font-condensed font-bold text-white uppercase hover:text-rudark-volt transition-colors" onClick={() => setIsMenuOpen(false)}>Contact</Link>
+                                    <Link href="/warranty" className="block text-lg font-condensed font-bold text-white uppercase hover:text-rudark-volt transition-colors" onClick={() => setIsMenuOpen(false)}>Warranty</Link>
+                                    <Link href="/returns" className="block text-lg font-condensed font-bold text-white uppercase hover:text-rudark-volt transition-colors" onClick={() => setIsMenuOpen(false)}>Returns</Link>
                                 </div>
                             </div>
                         </div>
@@ -242,7 +266,7 @@ export default function Navbar({ categories = [], settings }: NavbarProps) {
                             onSubmit={e => {
                                 e.preventDefault();
                                 if (searchQuery.trim()) {
-                                    router.push(`/catalog?q=${encodeURIComponent(searchQuery.trim())}`);
+                                    router.push(`/shop?q=${encodeURIComponent(searchQuery.trim())}`);
                                     setSearchOpen(false);
                                     setSearchQuery('');
                                 }

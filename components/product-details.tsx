@@ -8,10 +8,12 @@ import { resolvePurchaseMode } from '@/lib/catalog-utils';
 
 export default function ProductDetails({
     product,
-    variantStock = {}
+    variantStock = {},
+    onVariantImageChange,
 }: {
     product: Product;
     variantStock?: Record<string, number>;
+    onVariantImageChange?: (imageUrl: string | null) => void;
 }) {
     // Initialize default options
     const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
@@ -68,10 +70,23 @@ export default function ProductDetails({
     const isAllSelected = (product.options || []).every(opt => selectedOptions[opt.name]);
 
     const handleOptionSelect = (optionName: string, value: string) => {
-        setSelectedOptions(prev => ({
-            ...prev,
-            [optionName]: value
-        }));
+        const newOptions = { ...selectedOptions, [optionName]: value };
+        setSelectedOptions(newOptions);
+
+        // Notify parent of variant image if all options selected
+        if (onVariantImageChange) {
+            const allSelected = (product.options || []).every(opt =>
+                opt.name === optionName ? true : !!newOptions[opt.name]
+            );
+            if (allSelected) {
+                const matchedVariant = (product.variants || []).find(v =>
+                    Object.entries(v.options).every(([k, val]) =>
+                        (k === optionName ? value : newOptions[k]) === val
+                    )
+                );
+                onVariantImageChange(matchedVariant?.image || null);
+            }
+        }
     };
 
     // Filter out ARCHIVED variants
@@ -253,12 +268,31 @@ export default function ProductDetails({
                                 <AddToCartButton
                                     product={{
                                         ...product,
-                                        sku: currentSku, // Override SKU for Cart
-                                        web_price: currentPrice // Override Price for Cart (uses promo if active)
+                                        sku: currentSku,
+                                        web_price: currentPrice
                                     }}
                                     selectedOptions={selectedOptions}
                                 />
                             )}
+
+                            {/* Trust strip */}
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2">
+                                <span className="flex items-center gap-1.5 text-[11px] font-mono text-gray-500 uppercase tracking-wider">
+                                    <span className="text-rudark-volt">🔒</span> Secure Checkout
+                                </span>
+                                <span className="text-rudark-grey hidden sm:inline">|</span>
+                                <span className="flex items-center gap-1.5 text-[11px] font-mono text-gray-500 uppercase tracking-wider">
+                                    <span className="text-rudark-volt">↩</span> 7-Day Returns
+                                </span>
+                                <span className="text-rudark-grey hidden sm:inline">|</span>
+                                <span className="flex items-center gap-1.5 text-[11px] font-mono text-gray-500 uppercase tracking-wider">
+                                    <span className="text-rudark-volt">✓</span> Real-Time Stock
+                                </span>
+                                <span className="text-rudark-grey hidden sm:inline">|</span>
+                                <span className="flex items-center gap-1.5 text-[11px] font-mono text-gray-500 uppercase tracking-wider">
+                                    <span className="text-rudark-volt">📦</span> Ships in 1–3 Days
+                                </span>
+                            </div>
                         </>
                     )}
                 </div>
