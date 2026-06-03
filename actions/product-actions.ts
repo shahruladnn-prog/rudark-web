@@ -58,14 +58,15 @@ export async function toggleProductVisibility(id: string, field: 'is_public' | '
     await requireRole(['owner', 'staff']);
 
     try {
+        const productSnap = await adminDb.collection('products').doc(id).get();
+        const sku = productSnap.data()?.sku;
         await adminDb.collection('products').doc(id).update({
             [field]: !current,
             updated_at: FieldValue.serverTimestamp()
         });
+        // Only bust the specific product page + admin listing — not entire shop/catalog/home
         revalidatePath('/admin/products');
-        revalidatePath('/shop');
-        revalidatePath('/catalog');
-        revalidatePath('/');
+        if (sku) revalidatePath(`/product/${sku}`);
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -132,11 +133,11 @@ export async function saveProduct(productData: Partial<Product>) {
             });
         }
 
+        // Bust specific pages only — /shop, /catalog, / have revalidate=3600 ISR
+        // and don't need forced revalidation on every product edit. This prevents
+        // ISR write unit spikes on bulk saves or rapid edits.
         revalidatePath('/admin/products');
-        revalidatePath(`/admin/products/${id}`);
-        revalidatePath('/shop');
-        revalidatePath('/catalog');
-        revalidatePath('/');
+        if (id) revalidatePath(`/admin/products/${id}`);
 
         const currentSku = data.sku;
         if (currentSku) revalidatePath(`/product/${currentSku}`);
@@ -160,9 +161,6 @@ export async function deleteProduct(id: string) {
         await productRef.delete();
 
         revalidatePath('/admin/products');
-        revalidatePath('/shop');
-        revalidatePath('/catalog');
-        revalidatePath('/');
         if (sku) revalidatePath(`/product/${sku}`);
         return { success: true };
     } catch (error: any) {
