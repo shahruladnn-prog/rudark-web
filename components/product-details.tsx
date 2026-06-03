@@ -50,7 +50,9 @@ export default function ProductDetails({
                 const response = await fetch(`/api/stock?skus=${skus.join(',')}`);
                 if (response.ok) {
                     const data = await response.json();
-                    setLiveStock(data.stocks || {});
+                    // Merge — don't replace. Replacing would wipe server-side stock values
+                    // for any variant the API didn't return (e.g. if variant_skus index is stale).
+                    setLiveStock(prev => ({ ...prev, ...(data.stocks || {}) }));
                 }
             } catch (error) {
                 console.error('Failed to fetch stock:', error);
@@ -92,10 +94,10 @@ export default function ProductDetails({
     // Filter out ARCHIVED variants
     const visibleVariants = (product.variants || []).filter(v => v.stock_status !== 'ARCHIVED');
 
-    // Find active variant based on selection
+    // Find active variant based on all selected option values matching
     const activeVariant = visibleVariants.find(v => {
-        // Check if all options match
-        return Object.entries(v.options).every(([key, val]) => selectedOptions[key] === val);
+        if (!v.options || Object.keys(v.options).length === 0) return false;
+        return Object.entries(v.options).every(([key, val]) => val && selectedOptions[key] === val);
     });
 
     // Determine current price and display

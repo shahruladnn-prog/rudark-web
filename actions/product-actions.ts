@@ -91,8 +91,21 @@ export async function saveProduct(productData: Partial<Product>) {
             }
         });
 
+        // Normalize variant.options keys to match product.options[].name by position.
+        // This keeps the schema canonical even when the admin renames an option.
+        if (data.options?.length && data.variants?.length) {
+            data.variants = data.variants.map((v: any) => {
+                const oldValues = Object.values(v.options || {}).filter((val): val is string => Boolean(val));
+                const normalized: Record<string, string> = {};
+                (data.options as any[]).forEach((opt: any, i: number) => {
+                    if (oldValues[i]) normalized[opt.name] = oldValues[i];
+                });
+                return { ...v, options: normalized };
+            });
+        }
+
         // Always maintain variant_skus as a flat string array so /api/stock can find variant stock
-        const variantSkus = (data.variants || []).map((v: any) => v.sku).filter(Boolean);
+        const variantSkus = (data.variants || []).map((v: any) => String(v.sku)).filter(Boolean);
 
         const payload = {
             ...data,

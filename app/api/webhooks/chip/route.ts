@@ -150,6 +150,17 @@ export async function POST(req: NextRequest) {
                     return NextResponse.json({ received: true, status: 'verification_failed' });
                 }
 
+                const paidCurrency = purchase?.payment?.currency;
+                if (paidCurrency && paidCurrency !== 'MYR') {
+                    console.error('[CHIP Webhook] Unexpected currency', { orderId, paidCurrency });
+                    await orderRef.update({
+                        status: 'AMOUNT_VERIFICATION_FAILED',
+                        payment_verification_error: `Unexpected currency: ${paidCurrency}`,
+                        updated_at: new Date()
+                    });
+                    return NextResponse.json({ received: true, status: 'verification_failed' });
+                }
+
                 const itemCount = Array.isArray(currentOrder?.items) ? currentOrder!.items.length : 1;
                 const tolerance = Math.max(itemCount, 5);
 
@@ -211,6 +222,15 @@ export async function POST(req: NextRequest) {
 
             case 'purchase.payment_failure':
                 console.log('[CHIP Webhook] Payment failed for order:', orderId);
+
+                // Release reserved stock so items become available again
+                try {
+                    const { releaseOrderStock } = await import('@/actions/stock-validation');
+                    await releaseOrderStock(orderId);
+                    console.log('[CHIP Webhook] Reserved stock released for order:', orderId);
+                } catch (releaseErr) {
+                    console.error('[CHIP Webhook] Failed to release stock:', releaseErr);
+                }
 
                 await orderRef.update({
                     status: 'PAYMENT_FAILED',

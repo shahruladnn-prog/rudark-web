@@ -168,8 +168,8 @@ export async function processChipPayment(
             reference: orderId,
             order_id: orderId,
             success_redirect: `${baseUrl}/checkout/success?order_id=${orderId}`,
-            failure_redirect: `${baseUrl}/checkout?error=payment_failed`,
-            cancel_redirect: `${baseUrl}/checkout?error=payment_cancelled`,
+            failure_redirect: `${baseUrl}/checkout?error=payment_failed&order_id=${orderId}`,
+            cancel_redirect: `${baseUrl}/checkout?error=payment_cancelled&order_id=${orderId}`,
             success_callback: webhookUrl
         };
 

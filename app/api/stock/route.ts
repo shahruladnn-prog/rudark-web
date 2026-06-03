@@ -41,8 +41,10 @@ export async function GET(req: NextRequest) {
 
             for (const doc of snapshot.docs) {
                 const product = doc.data();
-                if (skus.includes(product.sku)) {
-                    stocks[product.sku] = Math.max(0, (product.stock_quantity || 0) - (product.reserved_quantity || 0));
+                // Normalize SKU to string — Loyverse-imported products may store sku as a number
+                const productSku = String(product.sku);
+                if (skus.includes(productSku)) {
+                    stocks[productSku] = Math.max(0, (product.stock_quantity || 0) - (product.reserved_quantity || 0));
                 }
             }
         }
@@ -60,23 +62,25 @@ export async function GET(req: NextRequest) {
                 for (const doc of snapshot.docs) {
                     const product = doc.data();
                     for (const variant of (product.variants || [])) {
-                        if (missingSkus.includes(variant.sku)) {
-                            stocks[variant.sku] = Math.max(0, (variant.stock_quantity || 0) - (variant.reserved_quantity || 0));
+                        const vSku = String(variant.sku);
+                        if (missingSkus.includes(vSku)) {
+                            stocks[vSku] = Math.max(0, (variant.stock_quantity || 0) - (variant.reserved_quantity || 0));
                         }
                     }
                 }
             }
 
-            // Fallback: scan all products for any still-missing SKUs
-            // (covers manually-created products before variant_skus field was added)
+            // Fallback: full collection scan for products missing the variant_skus index field.
+            // After running "Repair Options" migration this path should rarely be hit.
             const stillMissing = missingSkus.filter(s => typeof stocks[s] === 'undefined');
             if (stillMissing.length > 0) {
                 const allSnap = await adminDb.collection('products').get();
                 for (const doc of allSnap.docs) {
                     const product = doc.data();
                     for (const variant of (product.variants || [])) {
-                        if (stillMissing.includes(variant.sku)) {
-                            stocks[variant.sku] = Math.max(0, (variant.stock_quantity || 0) - (variant.reserved_quantity || 0));
+                        const vSku = String(variant.sku);
+                        if (stillMissing.includes(vSku)) {
+                            stocks[vSku] = Math.max(0, (variant.stock_quantity || 0) - (variant.reserved_quantity || 0));
                         }
                     }
                 }

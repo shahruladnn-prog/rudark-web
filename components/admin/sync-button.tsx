@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react';
-import { syncLoyverseItems } from '@/actions/admin-sync';
+import { importLoyverseProducts } from '@/actions/admin-sync';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/toast';
 
@@ -13,12 +13,12 @@ export default function SyncButton() {
     const { showToast } = useToast();
 
     const handleSync = async () => {
-        if (!confirm('Fetch latest products and variants from Loyverse?')) return;
+        if (!confirm('Import product names, SKUs, and prices from Loyverse? Stock will be set to 0 — enter counts via Bulk Stock Entry afterwards.')) return;
 
         setSyncing(true);
         setLastResult(null);
         try {
-            const stats = await syncLoyverseItems();
+            const stats = await importLoyverseProducts();
             setLastResult(stats);
 
             if (stats.errors.length === 0) {

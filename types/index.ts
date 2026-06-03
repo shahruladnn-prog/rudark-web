@@ -21,10 +21,9 @@ export interface ProductVariant {
     stock_status: 'IN_STOCK' | 'LOW' | 'OUT' | 'ARCHIVED' | 'CONTACT_US';
     options: Record<string, string>; // { "Size": "S", "Color": "Red" }
     image?: string; // Optional specific image
-    // Stock tracking (synced from Loyverse)
     stock_quantity?: number;
     reserved_quantity?: number;
-    loyverse_variant_id?: string;
+    loyverse_variant_id?: string; // Kept for one-time catalog import mapping only
     // Phase 4 fields
     cost_lots?: CostLot[];
     stock_web?: number;
@@ -39,7 +38,7 @@ export type CatalogUseCase = 'retail' | 'events' | 'corporate';
 
 export interface Product {
     id?: string;
-    sku: string; // Base SKU (or link to Loyverse Parent)
+    sku: string;
     name: string;
     description: string;
     web_price: number; // Base price (used if no variant selected or as default)
@@ -64,10 +63,9 @@ export interface Product {
     loyverse_item_id?: string;
     loyverse_variant_id?: string;
 
-    // Stock Management (NEW)
-    stock_quantity?: number;        // Total stock from Loyverse
-    reserved_quantity?: number;     // Currently reserved in checkouts
-    last_stock_sync?: any;         // Timestamp of last Loyverse sync
+    stock_quantity?: number;        // Total on-hand stock
+    reserved_quantity?: number;     // Currently reserved in active checkouts
+    last_stock_sync?: any;         // Timestamp of last stock update
     reorder_point?: number;        // Threshold for low stock warning
     safety_stock?: number;         // Buffer stock level
 

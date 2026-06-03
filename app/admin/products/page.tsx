@@ -77,9 +77,13 @@ export default function AdminProductsPage() {
                         className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all rounded-sm text-xs font-bold uppercase">
                         <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
                     </button>
+                    <Link href="/admin/products/cleanup"
+                        className="flex items-center gap-2 border-2 border-orange-400 text-orange-600 px-4 py-2 rounded-sm text-xs font-black uppercase hover:bg-orange-400 hover:text-white transition-all">
+                        <Tag size={14} /> Cleanup
+                    </Link>
                     <Link href="/admin/products/sync"
                         className="flex items-center gap-2 border-2 border-emerald-500 text-emerald-600 px-4 py-2 rounded-sm text-xs font-black uppercase hover:bg-emerald-500 hover:text-white transition-all">
-                        <RefreshCw size={14} /> Sync Loyverse
+                        <RefreshCw size={14} /> Import Loyverse
                     </Link>
                     <Link href="/admin/products/new"
                         className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-sm text-xs font-black uppercase hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all">

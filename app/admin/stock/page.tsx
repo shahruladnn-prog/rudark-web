@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { initializeStockFields } from '@/actions/sync-stock';
 import { cleanupExpiredReservations } from '@/actions/stock-cleanup';
+import { resetAllReservedQuantities, repairVariantOptionKeys } from '@/actions/stock-validation';
 import { getProducts } from '@/actions/product-actions';
 import { useToast } from '@/components/ui/toast';
 import {
@@ -62,6 +63,8 @@ interface ProductStock {
 export default function StockManagementPage() {
     const { showToast } = useToast();
     const [initializing, setInitializing] = useState(false);
+    const [resettingReserved, setResettingReserved] = useState(false);
+    const [repairingOptions, setRepairingOptions] = useState(false);
     const [result, setResult] = useState<any>(null);
     const [products, setProducts] = useState<ProductStock[]>([]);
     const [loading, setLoading] = useState(true);
@@ -116,6 +119,42 @@ export default function StockManagementPage() {
         loadProducts();
     };
 
+    const handleRepairOptions = async () => {
+        if (!confirm('Normalize all variant option keys to match product option names?\n\nThis is safe to run at any time and fixes the Loyverse import key mismatch that prevents variant buttons from showing stock. Run this once after any Loyverse import.')) return;
+        setRepairingOptions(true);
+        try {
+            const res = await repairVariantOptionKeys();
+            if (res.success) {
+                showToast('success', `Repaired ${res.fixed} product(s). Variant options are now normalized.`);
+                loadProducts();
+            } else {
+                showToast('error', 'Repair failed');
+            }
+        } catch (e: any) {
+            showToast('error', e.message || 'Repair failed');
+        } finally {
+            setRepairingOptions(false);
+        }
+    };
+
+    const handleResetReserved = async () => {
+        if (!confirm('Reset ALL reserved quantities to 0? This releases all pending stock reservations from abandoned checkouts. Only do this if customers are unable to buy items that should be in stock.')) return;
+        setResettingReserved(true);
+        try {
+            const res = await resetAllReservedQuantities();
+            if (res.success) {
+                showToast('success', `Reset reserved quantities on ${res.fixed} product(s). Stock is now available for purchase.`);
+                loadProducts();
+            } else {
+                showToast('error', 'Reset failed');
+            }
+        } catch (e: any) {
+            showToast('error', e.message || 'Reset failed');
+        } finally {
+            setResettingReserved(false);
+        }
+    };
+
     const toggleExpand = (id: string) => {
         const next = new Set(expandedProducts);
         next.has(id) ? next.delete(id) : next.add(id);
@@ -167,6 +206,46 @@ export default function StockManagementPage() {
                         <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
                     </button>
                 </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="flex flex-wrap gap-2 mb-5">
+                <Link href="/admin/stock/bulk-entry"
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors">
+                    <Database size={15} /> Bulk Stock Entry
+                </Link>
+                <Link href="/admin/stock/record-sale"
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+                    <Package size={15} /> Record External Sale
+                </Link>
+                <Link href="/admin/stock/receive"
+                    className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:border-gray-300 hover:bg-gray-50 transition-colors">
+                    Receive Stock
+                </Link>
+                <Link href="/admin/stock/purchase-orders"
+                    className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:border-gray-300 hover:bg-gray-50 transition-colors">
+                    Purchase Orders
+                </Link>
+                <Link href="/admin/stock/adjust"
+                    className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:border-gray-300 hover:bg-gray-50 transition-colors">
+                    Adjust Stock
+                </Link>
+                <button
+                    onClick={handleRepairOptions}
+                    disabled={repairingOptions}
+                    className="flex items-center gap-2 px-4 py-2 border border-amber-400 text-amber-700 rounded-lg text-sm font-medium hover:bg-amber-50 disabled:opacity-50 transition-colors"
+                    title="Normalize variant option keys after Loyverse import (safe to re-run)"
+                >
+                    <RefreshCw size={15} className={repairingOptions ? 'animate-spin' : ''} /> {repairingOptions ? 'Repairing...' : 'Repair Options'}
+                </button>
+                <button
+                    onClick={handleResetReserved}
+                    disabled={resettingReserved}
+                    className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 disabled:opacity-50 transition-colors"
+                    title="Release reserved stock from abandoned checkouts"
+                >
+                    <AlertTriangle size={15} /> {resettingReserved ? 'Resetting...' : 'Reset Reserved'}
+                </button>
             </div>
 
             {/* Stats */}

@@ -1,13 +1,13 @@
 'use client';
 import { useCart } from '@/context/cart-context';
 import { createCheckoutSession } from '@/actions/checkout';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getLatestProductFees } from '@/actions/cart-actions';
 import { validatePromoCode } from '@/actions/promo-actions';
 import { checkShippingRates } from '@/actions/shipping-actions';
 import { getShippingSettings } from '@/actions/shipping-settings-actions';
 import { getCollectionSettings } from '@/actions/collection-settings-actions';
-import { checkMultipleStock } from '@/actions/check-loyverse-stock';
+import { checkCartStock, releaseOrderStock } from '@/actions/stock-validation';
 import { ShippingSettings, DEFAULT_SHIPPING_SETTINGS } from '@/types/shipping-settings';
 import { CollectionSettings, DEFAULT_COLLECTION_SETTINGS, CollectionPoint } from '@/types/collection-settings';
 import FreeShippingProgress from '@/components/checkout/free-shipping-progress';
@@ -34,7 +34,24 @@ function SubmitButton() {
 export default function CheckoutPage() {
     const { cart, subtotal, totalItems, clearCart, removeFromCart, updateQuantity } = useCart();
     const dialog = useDialog();
+    const searchParams = useSearchParams();
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+    // Release reserved stock when user returns from a cancelled/failed payment
+    useEffect(() => {
+        const error = searchParams.get('error');
+        const orderId = searchParams.get('order_id');
+        if ((error === 'payment_cancelled' || error === 'payment_failed') && orderId) {
+            releaseOrderStock(orderId).catch(() => {});
+            if (error === 'payment_cancelled') {
+                setErrorMessage('Payment was cancelled. Your cart items are still reserved — please try again.');
+            } else {
+                setErrorMessage('Payment failed. Your cart items are still available — please try again.');
+            }
+            // Remove query params from URL without triggering a reload
+            window.history.replaceState({}, '', '/checkout');
+        }
+    }, []);
 
     // Delivery Method State
     const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'self_collection'>('delivery');
@@ -268,17 +285,19 @@ export default function CheckoutPage() {
 
         try {
             const cartItems = cart.map(item => ({
+                id: item.id,
                 sku: item.sku,
                 quantity: item.quantity,
-                name: item.name
+                name: item.name,
+                selected_options: item.selected_options
             }));
 
-            const stockValidation = await checkMultipleStock(cartItems);
+            const stockValidation = await checkCartStock(cartItems);
 
             if (!stockValidation.success) {
                 setErrorMessage(
-                    'Stock validation failed:\n\n' +
-                    stockValidation.errors.join('\n')
+                    'Some items in your cart are no longer available:\n\n' +
+                    stockValidation.errors.map(e => `• ${e}`).join('\n')
                 );
                 return;
             }
@@ -332,8 +351,10 @@ export default function CheckoutPage() {
                         <h2 className="text-xl font-condensed font-bold mb-6 uppercase text-gray-200">Logistics Data</h2>
 
                         {errorMessage && (
-                            <div className="bg-red-900/30 border border-red-500 text-red-100 p-4 mb-6 text-sm font-mono">
-                                [ERROR]: {errorMessage}
+                            <div className="bg-red-900/30 border border-red-500 text-red-100 p-4 mb-6 text-sm">
+                                {errorMessage.split('\n').map((line, i) => (
+                                    <p key={i} className={i === 0 ? 'font-bold mb-2' : 'text-red-200'}>{line}</p>
+                                ))}
                             </div>
                         )}
 

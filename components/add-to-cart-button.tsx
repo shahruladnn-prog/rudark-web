@@ -4,7 +4,6 @@ import { Product } from '@/types';
 import { useCart } from '@/context/cart-context';
 import { useState } from 'react';
 import { Loader2, ShoppingBag } from 'lucide-react';
-import { checkLoyverseStock } from '@/actions/check-loyverse-stock';
 import { useDialog } from '@/components/ui/dialog';
 import { trackAddToCart } from '@/lib/analytics';
 
@@ -29,18 +28,26 @@ export default function AddToCartButton({ product, selectedOptions }: { product:
                 .filter((item: any) => item.sku === product.sku)
                 .reduce((sum: number, item: any) => sum + item.quantity, 0);
 
-            // 2. Check TOTAL (existing + new) against Loyverse stock
+            // 2. Check TOTAL (existing + new) against Firebase stock
             const totalRequested = existingInCart + quantity;
-            const stockCheck = await checkLoyverseStock(product.sku, totalRequested);
+            let currentStock = 0;
+            try {
+                const res = await fetch(`/api/stock?skus=${encodeURIComponent(product.sku)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    currentStock = data.stocks?.[product.sku] ?? 0;
+                }
+            } catch {
+                // If stock check fails, allow add — checkout will catch oversell
+            }
 
-            if (!stockCheck.available) {
+            if (currentStock > 0 && totalRequested > currentStock) {
                 setLoading(false);
-
                 await dialog.alert({
                     title: 'Insufficient Stock',
                     message: existingInCart > 0
-                        ? `You already have ${existingInCart} in your cart.\nOnly ${stockCheck.currentStock} units available total.`
-                        : `Only ${stockCheck.currentStock} units available.`
+                        ? `You already have ${existingInCart} in your cart.\nOnly ${currentStock} units available total.`
+                        : `Only ${currentStock} units available.`
                 });
                 return;
             }

@@ -1,150 +1,23 @@
 'use server';
 import { requireRole } from '@/actions/session-actions';
-
 import { adminDb } from '@/lib/firebase-admin';
 import { loyverse } from '@/lib/loyverse';
-import { Product, ProductVariant } from '@/types';
+import { ProductVariant, VariantOption } from '@/types';
 import { revalidatePath } from 'next/cache';
 import { FieldValue } from 'firebase-admin/firestore';
 
-export async function syncLoyverseReceipts(days: number = 1) {
-    await requireRole(['owner', 'staff', 'warehouse']);
-
-    const stats = { receipts_processed: 0, items_deducted: 0, errors: [] as string[] };
-
-    try {
-        const [settingsDoc, lvPaymentTypesData] = await Promise.all([
-            adminDb.doc('settings/payment').get(),
-            loyverse.getPaymentTypes().catch(() => ({ payment_types: [] }))
-        ]);
-        
-        const settings = settingsDoc.data();
-        const mappings = settings?.loyverse_mappings || {};
-        const lvPaymentTypes = lvPaymentTypesData.payment_types || [];
-        const lvTypeNameMap = new Map<string, string>();
-        lvPaymentTypes.forEach((t: any) => lvTypeNameMap.set(t.id, t.name));
-
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - days);
-        let cursor: string | undefined = undefined;
-        let allReceipts: any[] = [];
-
-        do {
-            const response = await loyverse.getReceipts({ created_at_min: startDate.toISOString(), cursor });
-            if (response.receipts) allReceipts = [...allReceipts, ...response.receipts];
-            cursor = response.cursor;
-        } while (cursor);
-
-        for (const receipt of allReceipts) {
-            const eventId = `loyverse_receipt_${receipt.receipt_number}`;
-            const orderId = `POS-${receipt.receipt_number}`;
-            const eventRef = adminDb.collection('webhook_events').doc(eventId);
-            const orderRef = adminDb.collection('orders').doc(orderId);
-            
-            const [eventDoc, orderDoc] = await Promise.all([eventRef.get(), orderRef.get()]);
-            const isMissingData = orderDoc.exists && (!orderDoc.data()?.payment_method || orderDoc.data()?.payment_method === 'OTHER' || (orderDoc.data()?.total_amount || 0) === 0);
-
-            if (eventDoc.exists && orderDoc.exists && !isMissingData) continue;
-
-            try {
-                const receiptSkus: string[] = receipt.line_items.map((li: any) => li.sku).filter(Boolean);
-                await adminDb.runTransaction(async (transaction) => {
-                    if (!eventDoc.exists && receiptSkus.length > 0) {
-                        const productsQuery = adminDb.collection('products').where('sku', 'in', receiptSkus.slice(0, 30));
-                        const productsSnap = await transaction.get(productsQuery);
-                        const productMap = new Map<string, {ref: any, data: Product}>();
-                        productsSnap.docs.forEach(doc => productMap.set(doc.data().sku, { ref: doc.ref, data: doc.data() as Product }));
-
-                        for (const lineItem of receipt.line_items) {
-                            const match = productMap.get(lineItem.sku);
-                            if (!match) continue;
-                            const { ref, data: product } = match;
-                            const qty = lineItem.quantity;
-                            let updatedDoc: any = {};
-                            let prevStock = 0; let newStock = 0;
-
-                            const variantIdx = product.variants?.findIndex(v => v.sku === lineItem.sku) ?? -1;
-                            if (variantIdx !== -1) {
-                                const updatedVariants = [...(product.variants || [])];
-                                prevStock = updatedVariants[variantIdx].stock_quantity || 0;
-                                newStock = Math.max(0, prevStock - qty);
-                                updatedVariants[variantIdx].stock_quantity = newStock;
-                                updatedDoc.variants = updatedVariants;
-                                updatedDoc.stock_quantity = updatedVariants.reduce((sum, v) => sum + (v.stock_quantity || 0), 0);
-                            } else {
-                                prevStock = product.stock_quantity || 0;
-                                newStock = Math.max(0, prevStock - qty);
-                                updatedDoc.stock_quantity = newStock;
-                            }
-
-                            let remainingToDeduct = qty;
-                            const updatedLots = [...(product.cost_lots || [])];
-                            updatedLots.sort((a, b) => (a.created_at?.seconds || 0) - (b.created_at?.seconds || 0));
-                            for (const lot of updatedLots) {
-                                if (remainingToDeduct <= 0) break;
-                                const deduct = Math.min(lot.quantity, remainingToDeduct);
-                                lot.quantity -= deduct;
-                                remainingToDeduct -= deduct;
-                            }
-                            updatedDoc.cost_lots = updatedLots.filter(l => l.quantity > 0);
-                            const rp = product.reorder_point ?? 5;
-                            updatedDoc.stock_status = (updatedDoc.stock_quantity || 0) > 0 ? ((updatedDoc.stock_quantity || 0) <= rp ? 'LOW' : 'IN_STOCK') : 'OUT';
-                            updatedDoc.updated_at = FieldValue.serverTimestamp();
-                            transaction.update(ref, updatedDoc);
-
-                            transaction.set(adminDb.collection('stock_movements').doc(), {
-                                product_id: ref.id, product_name: product.name, variant_sku: lineItem.sku,
-                                type: 'SALE', quantity: -qty, previous_quantity: prevStock, new_quantity: newStock,
-                                reason: `Loyverse Receipt ${receipt.receipt_number}`, effective_date: new Date(receipt.created_at),
-                                created_at: FieldValue.serverTimestamp()
-                            });
-                        }
-                        transaction.set(eventRef, { processed: true, receipt_id: receipt.receipt_number, created_at: FieldValue.serverTimestamp() });
-                    }
-
-                    if (!orderDoc.exists || isMissingData) {
-                        const totalMoney = parseFloat(receipt.total_money) || 0;
-                        const payment = receipt.payments?.[0];
-                        let paymentMethodName = payment?.type || 'OTHER';
-                        if (payment?.payment_type_id) {
-                            paymentMethodName = mappings[payment.payment_type_id] || lvTypeNameMap.get(payment.payment_type_id) || payment.type || 'OTHER';
-                        }
-                        transaction.set(orderRef, {
-                            customer: { name: 'Loyverse Customer', email: 'pos@loyverse.com', phone: '' },
-                            items: receipt.line_items.map((li: any) => ({
-                                name: li.item_name, sku: li.sku, quantity: li.quantity,
-                                price: parseFloat(li.price) || 0, web_price: parseFloat(li.price) || 0,
-                                variant_label: li.variant_name || undefined
-                            })),
-                            total_amount: totalMoney, status: 'COMPLETED', payment_status: 'paid',
-                            payment_method: paymentMethodName, type: 'POS',
-                            created_at: new Date(receipt.created_at), synced_at: FieldValue.serverTimestamp()
-                        }, { merge: true });
-                        stats.receipts_processed++;
-                    }
-                });
-            } catch (err: any) {
-                stats.errors.push(`Receipt ${receipt.receipt_number}: ${err.message}`);
-            }
-        }
-        revalidatePath('/admin/products');
-        return stats;
-    } catch (error: any) {
-        stats.errors.push(error.message);
-        return stats;
-    }
-}
-
-export async function syncLoyverseItems() {
+/**
+ * One-time catalog import from Loyverse.
+ * Imports product names, SKUs, prices into Firebase.
+ * Sets stock_quantity = 0 for all imported items — run Bulk Stock Entry afterwards.
+ */
+export async function importLoyverseProducts() {
     await requireRole(['owner', 'staff', 'warehouse']);
 
     const stats = { created: 0, updated: 0, errors: [] as string[] };
     try {
-        const [itemsData, inventoryData] = await Promise.all([loyverse.getItems(), loyverse.getInventory()]);
+        const itemsData = await loyverse.getItems();
         const items = itemsData.items || [];
-        const inventory = inventoryData.inventory_levels || [];
-        const stockMap = new Map<string, number>();
-        inventory.forEach((inv: any) => stockMap.set(inv.variant_id, inv.in_stock));
 
         for (const lvItem of items) {
             try {
@@ -153,46 +26,74 @@ export async function syncLoyverseItems() {
 
                 const productQuery = adminDb.collection('products').where('sku', '==', primarySku).limit(1);
                 const productSnap = await productQuery.get();
-                
-                // MAP VARIANTS FIRST
+
+                // Build canonical product.options from Loyverse dimension names.
+                // Only include dimensions that have at least one variant with a value.
+                const optionDimensions = [
+                    { name: lvItem.option1_name as string | null, valueKey: 'option1_value' },
+                    { name: lvItem.option2_name as string | null, valueKey: 'option2_value' },
+                    { name: lvItem.option3_name as string | null, valueKey: 'option3_value' },
+                ].filter(d => d.name);
+
+                const productOptions: VariantOption[] = [];
+                for (const dim of optionDimensions) {
+                    const values = [
+                        ...new Set(lvItem.variants.map((v: any) => v[dim.valueKey]).filter(Boolean))
+                    ] as string[];
+                    if (values.length > 0) productOptions.push({ name: dim.name!, values });
+                }
+
                 const variants: ProductVariant[] = lvItem.variants.map((v: any) => {
                     const price = parseFloat(v.price) || 0;
+
+                    // Build variant.options using the SAME names as productOptions — no nulls.
+                    // This is the canonical form: keys always match product.options[].name.
+                    const variantOptions: Record<string, string> = {};
+                    if (lvItem.option1_name && v.option1_value) variantOptions[lvItem.option1_name] = String(v.option1_value);
+                    if (lvItem.option2_name && v.option2_value) variantOptions[lvItem.option2_name] = String(v.option2_value);
+                    if (lvItem.option3_name && v.option3_value) variantOptions[lvItem.option3_name] = String(v.option3_value);
+
                     return {
-                        id: v.variant_id, 
-                        sku: v.sku, 
-                        price: price, // FORCE CAPTURE
-                        stock_status: (stockMap.get(v.variant_id) || 0) > 0 ? 'IN_STOCK' : 'OUT',
-                        stock_quantity: stockMap.get(v.variant_id) || 0,
-                        options: { 
-                            [lvItem.option1_name || 'Option']: v.option1_value, 
-                            [lvItem.option2_name || 'Option 2']: v.option2_value, 
-                            [lvItem.option3_name || 'Option 3']: v.option3_value 
-                        },
+                        id: v.variant_id,
+                        sku: String(v.sku), // Normalize to string — Loyverse may return numeric SKUs
+                        price,
+                        stock_status: 'OUT' as const,
+                        stock_quantity: 0,
+                        reserved_quantity: 0,
+                        options: variantOptions,
                         loyverse_variant_id: v.variant_id
                     };
                 }).filter((v: any) => v.sku);
 
-                // Use the FIRST variant price for the parent
                 const actualPrice = variants[0]?.price || 0;
+                const variantSkus = variants.map(v => v.sku).filter(Boolean);
 
                 const productData: any = {
-                    name: lvItem.item_name, 
+                    name: lvItem.item_name,
                     description: lvItem.description || '',
                     images: lvItem.image_url ? [lvItem.image_url] : [],
-                    stock_status: 'IN_STOCK', 
+                    stock_status: 'OUT',
                     updated_at: FieldValue.serverTimestamp(),
-                    loyverse_id: lvItem.id, 
-                    variants, 
-                    web_price: actualPrice, // FORCE PARENT PRICE
-                    stock_quantity: variants.reduce((sum, v) => sum + (v.stock_quantity || 0), 0)
+                    loyverse_id: lvItem.id,
+                    variants,
+                    options: productOptions,
+                    variant_skus: variantSkus,
+                    web_price: actualPrice,
+                    stock_quantity: 0,
+                    reserved_quantity: 0
                 };
 
                 if (!productSnap.empty) {
-                    // Force update price even if product exists
                     await productSnap.docs[0].ref.update({
-                        ...productData,
+                        name: productData.name,
+                        description: productData.description,
+                        loyverse_id: productData.loyverse_id,
                         web_price: actualPrice,
-                        variants: variants
+                        // Update options and variant_skus on re-import so they stay in sync
+                        options: productOptions,
+                        variant_skus: variantSkus,
+                        updated_at: FieldValue.serverTimestamp()
+                        // Do NOT overwrite stock quantities or variants on update
                     });
                     stats.updated++;
                 } else {
@@ -224,64 +125,47 @@ export async function fetchLoyverseProductBySku(sku: string) {
     if (!sku) throw new Error('SKU is required');
 
     try {
-        // 1. Fetch all items (Loyverse doesn't have a direct SKU search in v1.0 /items)
         const itemsData = await loyverse.getItems();
         const items = itemsData.items || [];
-        
-        // 2. Find the item containing the SKU
+
         let foundItem: any = null;
         for (const item of items) {
             const hasSku = item.variants.some((v: any) => v.sku === sku);
-            if (hasSku) {
-                foundItem = item;
-                break;
-            }
+            if (hasSku) { foundItem = item; break; }
         }
 
         if (!foundItem) return { success: false, error: 'Product SKU not found in Loyverse' };
 
-        // 3. Fetch inventory for variants
-        const variantIds = foundItem.variants.map((v: any) => v.variant_id);
-        const inventoryLevels = await loyverse.getVariantInventory(variantIds);
-        const stockMap = new Map<string, number>();
-        inventoryLevels.forEach((inv: any) => stockMap.set(inv.variant_id, inv.in_stock));
-
-        // 4. Map to our Product format
         const variants: ProductVariant[] = foundItem.variants.map((v: any) => {
             const price = parseFloat(v.price) || 0;
+            const variantOptions: Record<string, string> = {};
+            if (foundItem.option1_name && v.option1_value) variantOptions[foundItem.option1_name] = String(v.option1_value);
+            if (foundItem.option2_name && v.option2_value) variantOptions[foundItem.option2_name] = String(v.option2_value);
+            if (foundItem.option3_name && v.option3_value) variantOptions[foundItem.option3_name] = String(v.option3_value);
             return {
                 id: v.variant_id,
-                sku: v.sku,
-                price: price,
-                stock_quantity: stockMap.get(v.variant_id) || 0,
-                stock_status: (stockMap.get(v.variant_id) || 0) > 0 ? 'IN_STOCK' : 'OUT',
-                options: {
-                    [foundItem.option1_name || 'Option']: v.option1_value,
-                    [foundItem.option2_name || 'Option 2']: v.option2_value,
-                    [foundItem.option3_name || 'Option 3']: v.option3_value
-                },
+                sku: String(v.sku),
+                price,
+                stock_quantity: 0,
+                reserved_quantity: 0,
+                stock_status: 'OUT' as const,
+                options: variantOptions,
                 loyverse_variant_id: v.variant_id
             };
         });
 
-        const productData = {
-            name: foundItem.item_name,
-            description: foundItem.description || '',
-            web_price: variants[0]?.price || 0,
-            variants,
-            stock_quantity: variants.reduce((sum, v) => sum + (v.stock_quantity || 0), 0)
+        return {
+            success: true,
+            data: {
+                name: foundItem.item_name,
+                description: foundItem.description || '',
+                web_price: variants[0]?.price || 0,
+                variants,
+                stock_quantity: 0
+            }
         };
-
-        return { success: true, data: productData };
-
     } catch (error: any) {
         console.error('[fetchLoyverseProductBySku] Error:', error);
         return { success: false, error: error.message };
     }
-}
-
-export async function syncLoyverseToFirebase() {
-    await requireRole(['owner', 'staff', 'warehouse']);
-
-    return { error: "Please use syncLoyverseItems or syncLoyverseReceipts" };
 }

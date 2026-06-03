@@ -1,7 +1,6 @@
 'use server';
 import { requireRole } from '@/actions/session-actions';
-
-import { loyverse } from '@/lib/loyverse';
+import { adminDb } from '@/lib/firebase-admin';
 
 export async function checkStock(sku: string | undefined, variantId: string | undefined) {
     await requireRole(['owner', 'staff', 'warehouse']);
@@ -9,49 +8,40 @@ export async function checkStock(sku: string | undefined, variantId: string | un
     if (!sku && !variantId) return { stock: 0, status: 'UNKNOWN' };
 
     try {
-        // Fetch real inventory
-        const inventoryData = await loyverse.getInventory();
-        const inventoryMap = new Map<string, number>(); // VariantID -> Stock
+        // Try variant SKU lookup first
+        const skuToSearch = sku || '';
 
-        inventoryData.inventory_levels.forEach((inv: any) => {
-            inventoryMap.set(inv.variant_id, inv.in_stock);
-        });
+        // Query by variant_skus array field (fast path)
+        const variantSnap = await adminDb.collection('products')
+            .where('variant_skus', 'array-contains', skuToSearch)
+            .limit(1)
+            .get();
 
-        // 1. Try Variant ID first
-        let targetVariantId = variantId;
-
-        // 2. Fallback to SKU lookup if Variant ID is missing
-        if (!targetVariantId && sku) {
-            const itemsData = await loyverse.getItems();
-            const itemsList = itemsData.items || [];
-
-            for (const item of itemsList) {
-                const found = item.variants.find((v: any) => v.sku === sku);
-                if (found) {
-                    targetVariantId = found.variant_id;
-                    break;
-                }
+        if (!variantSnap.empty) {
+            const product = variantSnap.docs[0].data();
+            const variant = (product.variants || []).find((v: any) => v.sku === skuToSearch);
+            if (variant) {
+                const stock = Math.max(0, (variant.stock_quantity || 0) - (variant.reserved_quantity || 0));
+                return { stock, status: stock > 0 ? 'IN_STOCK' : 'OUT' };
             }
         }
 
-        if (!targetVariantId) {
-            // If strictly enforced, this is OUT OF STOCK. 
-            // But if we allow custom items not in Loyverse, we might say IN_STOCK?
-            // User requested "Manual Entry" products. If I created a product with SKU "123" and Loyverse has no "123",
-            // then Stock Check fails.
-            // Let's assume Manual + SKU means "I expect it to be in Loyverse".
-            return { stock: 0, status: 'NOT_FOUND' };
+        // Fallback: query by product SKU
+        const productSnap = await adminDb.collection('products')
+            .where('sku', '==', skuToSearch)
+            .limit(1)
+            .get();
+
+        if (!productSnap.empty) {
+            const product = productSnap.docs[0].data();
+            const stock = Math.max(0, (product.stock_quantity || 0) - (product.reserved_quantity || 0));
+            return { stock, status: stock > 0 ? 'IN_STOCK' : 'OUT' };
         }
 
-        const currentStock = inventoryMap.get(targetVariantId) || 0;
-
-        return {
-            stock: currentStock,
-            status: currentStock > 0 ? 'IN_STOCK' : 'OUT'
-        };
+        return { stock: 0, status: 'NOT_FOUND' };
 
     } catch (error) {
-        console.error("Stock Check Action Error:", error);
+        console.error('[Stock Check] Error:', error);
         return { stock: 0, status: 'ERROR', error: 'Failed to check stock' };
     }
 }

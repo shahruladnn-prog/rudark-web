@@ -7,7 +7,7 @@ import {
     CheckCircle, AlertCircle, Image as ImageIcon,
     Loader2, Hash, Database
 } from 'lucide-react';
-import { syncLoyverseItems } from '@/actions/admin-sync';
+import { importLoyverseProducts } from '@/actions/admin-sync';
 import { useToast } from '@/components/ui/toast';
 
 export default function ProductSyncPage() {
@@ -21,12 +21,12 @@ export default function ProductSyncPage() {
     } | null>(null);
 
     const handleSync = async () => {
-        if (!confirm('This will sync all names, SKUs, images and variants from Loyverse. Continue?')) return;
-        
+        if (!confirm('This will import product names, SKUs, and prices from Loyverse. Stock quantities will be set to 0 — use Bulk Stock Entry to enter your actual counts. Continue?')) return;
+
         setLoading(true);
         setResult(null);
         try {
-            const stats = await syncLoyverseItems();
+            const stats = await importLoyverseProducts();
             setResult(stats);
             if (stats.errors.length > 0) {
                 showToast('warning', `Sync completed with ${stats.errors.length} errors`);
@@ -50,8 +50,8 @@ export default function ProductSyncPage() {
                     <ChevronLeft size={20} />
                 </button>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Catalog Synchronization</h1>
-                    <p className="text-gray-500 text-sm">Import products, variants and images from Loyverse POS</p>
+                    <h1 className="text-2xl font-bold text-gray-900">Import Catalog from Loyverse</h1>
+                    <p className="text-gray-500 text-sm">One-time import of product names, SKUs, and prices. Stock is set to 0 — enter counts via Bulk Stock Entry.</p>
                 </div>
             </div>
 
