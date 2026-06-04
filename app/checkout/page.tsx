@@ -197,8 +197,10 @@ export default function CheckoutPage() {
 
 
     const calculateFinalShipping = (baseRate: number) => {
-        const markupAmount = baseRate * (maxMarkupPercent / 100);
-        return baseRate + markupAmount + totalHandling;
+        const safeMarkup = isNaN(maxMarkupPercent) ? 0 : maxMarkupPercent;
+        const safeHandling = isNaN(totalHandling) ? 0 : totalHandling;
+        const markupAmount = baseRate * (safeMarkup / 100);
+        return baseRate + markupAmount + safeHandling;
     };
 
     // Calculate shipping cost (with free shipping check)

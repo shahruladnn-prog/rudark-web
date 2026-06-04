@@ -88,7 +88,8 @@ export async function saveProduct(productData: Partial<Product>) {
             if (dataAny[field] === '' || dataAny[field] === undefined) {
                 dataAny[field] = null;
             } else {
-                dataAny[field] = Number(dataAny[field]);
+                const num = Number(dataAny[field]);
+                dataAny[field] = isNaN(num) ? null : num;
             }
         });
 

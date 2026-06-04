@@ -49,13 +49,14 @@ export async function getLatestProductFees(productIds: string[]): Promise<Record
             const cat = p.category_slug ? categories[p.category_slug] : null;
 
             // Inheritance: Product > Category > Default(0)
-            const finalMarkupPercent = p.shipping_markup_percent ?? (cat?.shipping_markup_percent) ?? 0;
-            const finalHandlingFee = p.handling_fee ?? (cat?.handling_fee) ?? 0;
+            // Use || 0 (not ?? 0) so NaN values from Firestore are also caught (NaN is falsy)
+            const markupRaw = p.shipping_markup_percent ?? cat?.shipping_markup_percent;
+            const handlingRaw = p.handling_fee ?? cat?.handling_fee;
 
             feeMap[p.id] = {
                 id: p.id,
-                shipping_markup_percent: Number(finalMarkupPercent),
-                handling_fee: Number(finalHandlingFee)
+                shipping_markup_percent: Number(markupRaw) || 0,
+                handling_fee: Number(handlingRaw) || 0
             };
         });
 
