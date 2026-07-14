@@ -13,6 +13,11 @@ export interface CostLot {
     created_at: any;
 }
 
+export interface VariantSpecLine {
+    label: string;
+    value: string;
+}
+
 export interface ProductVariant {
     id: string; // Unique ID (e.g. generated UUID or hash)
     sku: string; // Unique SKU for this specific variation
@@ -21,6 +26,7 @@ export interface ProductVariant {
     stock_status: 'IN_STOCK' | 'LOW' | 'OUT' | 'ARCHIVED' | 'CONTACT_US';
     options: Record<string, string>; // { "Size": "S", "Color": "Red" }
     image?: string; // Optional specific image
+    spec?: VariantSpecLine[]; // Optional technical spec block (freeform label/value pairs), shown when this variant is selected
     stock_quantity?: number;
     reserved_quantity?: number;
     loyverse_variant_id?: string; // Kept for one-time catalog import mapping only
@@ -68,6 +74,11 @@ export interface Product {
     last_stock_sync?: any;         // Timestamp of last stock update
     reorder_point?: number;        // Threshold for low stock warning
     safety_stock?: number;         // Buffer stock level
+
+    // Pre-order (deposit now, balance later)
+    is_pre_order?: boolean;
+    pre_order_deposit_percent?: number; // e.g. 30 = 30% deposit
+    pre_order_eta?: string;             // freeform, e.g. "September 2026"
 
     // Phase 4 fields
     cost_lots?: CostLot[];

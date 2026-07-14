@@ -49,8 +49,9 @@ export async function cleanupExpiredReservations(expiryMinutes: number = 30) {
             const order = orderDoc.data();
 
             try {
-                // Release the reserved stock
-                if (order.items && order.items.length > 0) {
+                // Release the reserved stock — skip for pre-orders, which never reserved
+                // stock to begin with (no physical inventory exists yet for those items).
+                if (order.items && order.items.length > 0 && !order.is_pre_order) {
                     const releaseResult = await releaseReservedStock(order.items);
 
                     if (releaseResult.success) {

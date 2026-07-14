@@ -47,7 +47,7 @@ export async function processRefund(
         const order = orderDoc.data()!;
 
         // 2. Validate order status
-        const refundableStatuses = ['PAID', 'PROCESSING', 'READY_TO_SHIP', 'SHIPPED', 'DELIVERED', 'COMPLETED'];
+        const refundableStatuses = ['PAID', 'PROCESSING', 'READY_TO_SHIP', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'DEPOSIT_PAID', 'BALANCE_DUE'];
         if (!refundableStatuses.includes(order.status)) {
             return { success: false, error: `Cannot refund order with status: ${order.status}` };
         }
@@ -55,10 +55,12 @@ export async function processRefund(
         console.log(`[Refund] Processing ${refundType} refund for order ${orderId}`);
 
         // 3. Process stock restoration for items that need it
+        // Pre-order items were never deducted from stock (no reservation ever happened
+        // for them), so "restoring" stock here would inflate phantom inventory.
         const stockRestorationItems: CartItem[] = [];
 
         for (const item of items) {
-            if (item.return_to_stock) {
+            if (item.return_to_stock && !order.is_pre_order) {
                 // Build CartItem for stock restoration
                 const cartItem: CartItem = {
                     id: item.product_id,
@@ -232,6 +234,41 @@ export async function getRefundableItems(orderId: string) {
         }
 
         const order = orderDoc.data()!;
+
+        // Pre-orders only ever collect a fraction of the item's full price (a deposit,
+        // or the full amount once the balance is also paid) — showing order.items' full
+        // web_price/promo_price here would let an admin refund far more than was actually
+        // charged via CHIP. Return a single lump-sum line representing what was actually
+        // collected instead of an itemized breakdown at full price.
+        if (order.is_pre_order) {
+            const FULLY_PAID_STATUSES = ['PAID', 'PROCESSING', 'READY_TO_SHIP', 'SHIPPED', 'DELIVERED', 'COMPLETED'];
+            const amountCollected = FULLY_PAID_STATUSES.includes(order.status)
+                ? Number(order.pre_order_full_total ?? order.subtotal ?? 0)
+                : Number(order.deposit_amount ?? 0);
+
+            const alreadyRefundedCount = order.refund_data?.items?.some((i: any) => i.product_id === 'PRE_ORDER_TOTAL') ? 1 : 0;
+            const refundableQuantity = alreadyRefundedCount > 0 ? 0 : 1;
+
+            if (refundableQuantity <= 0 || amountCollected <= 0) {
+                return { success: true, items: [] };
+            }
+
+            return {
+                success: true,
+                items: [{
+                    product_id: 'PRE_ORDER_TOTAL',
+                    product_name: `Amount Collected — ${order.items?.[0]?.name || 'Pre-Order'}`,
+                    sku: order.items?.[0]?.sku || '',
+                    variant_sku: undefined,
+                    selected_options: undefined,
+                    original_quantity: 1,
+                    already_refunded: alreadyRefundedCount,
+                    refundable_quantity: refundableQuantity,
+                    price: amountCollected,
+                }],
+            };
+        }
+
         const items = order.items || [];
 
         // If there's already a refund, subtract those quantities

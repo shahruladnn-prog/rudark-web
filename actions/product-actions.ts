@@ -82,7 +82,7 @@ export async function saveProduct(productData: Partial<Product>) {
         if (data.web_price) data.web_price = Number(data.web_price);
         if (data.promo_price) data.promo_price = Number(data.promo_price);
 
-        const numericFields = ['markup_amount', 'shipping_markup_percent', 'handling_fee', 'weight', 'width', 'length', 'height'];
+        const numericFields = ['markup_amount', 'shipping_markup_percent', 'handling_fee', 'weight', 'width', 'length', 'height', 'pre_order_deposit_percent'];
         numericFields.forEach(field => {
             const dataAny = data as any;
             if (dataAny[field] === '' || dataAny[field] === undefined) {

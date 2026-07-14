@@ -9,11 +9,14 @@ import {
 import { getOrderById, updateOrderStatus, reprocessOrder } from '@/actions/order-admin-actions';
 import { processRefund, getRefundableItems } from '@/actions/refund-actions';
 import { generateWhatsAppLink } from '@/actions/parcelasia-sync';
+import { collectPreOrderBalance } from '@/actions/pre-order-actions';
 import { useToast } from '@/components/ui/toast';
 
 const STATUS_OPTIONS = [
     { value: 'PENDING', label: 'Pending' },
     { value: 'EXPIRED', label: 'Expired' },
+    { value: 'DEPOSIT_PAID', label: 'Deposit Paid' },
+    { value: 'BALANCE_DUE', label: 'Balance Due' },
     { value: 'PAID', label: 'Paid' },
     { value: 'PROCESSING', label: 'Processing' },
     { value: 'READY_TO_SHIP', label: 'Ready to Ship' },
@@ -37,6 +40,8 @@ export default function OrderDetailPage({ params }: PageParams) {
     const [showRefundModal, setShowRefundModal] = useState(false);
     const [refundItems, setRefundItems] = useState<any[]>([]);
     const [refundReason, setRefundReason] = useState('');
+    const [balanceLinkUrl, setBalanceLinkUrl] = useState<string | null>(null);
+    const [generatingBalanceLink, setGeneratingBalanceLink] = useState(false);
 
     useEffect(() => {
         params.then(p => { setOrderId(p.id); loadOrder(p.id); });
@@ -140,6 +145,20 @@ export default function OrderDetailPage({ params }: PageParams) {
         setUpdating(false);
     };
 
+    const handleGenerateBalanceLink = async () => {
+        if (!orderId) return;
+        setGeneratingBalanceLink(true);
+        const result = await collectPreOrderBalance(orderId);
+        if (result.success && result.checkoutUrl) {
+            setBalanceLinkUrl(result.checkoutUrl);
+            showToast('success', 'Balance payment link generated');
+            await loadOrder(orderId);
+        } else {
+            showToast('error', 'Failed to generate balance link: ' + result.error);
+        }
+        setGeneratingBalanceLink(false);
+    };
+
     const formatDate = (dateStr: string) => {
         if (!dateStr) return '-';
         return new Date(dateStr).toLocaleDateString('en-MY', {
@@ -174,7 +193,7 @@ export default function OrderDetailPage({ params }: PageParams) {
                     <p className="text-gray-400 text-sm mt-0.5">{formatDate(order.created_at)}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {['PAID', 'PROCESSING', 'READY_TO_SHIP', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(order.status) && (
+                    {['PAID', 'PROCESSING', 'READY_TO_SHIP', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'DEPOSIT_PAID', 'BALANCE_DUE'].includes(order.status) && (
                         <button
                             onClick={handleOpenRefund}
                             disabled={updating}
@@ -370,6 +389,61 @@ export default function OrderDetailPage({ params }: PageParams) {
                             </div>
                         </div>
                     </div>
+
+                    {/* Pre-Order Deposit/Balance */}
+                    {order.is_pre_order && (
+                        <div className="bg-white border border-purple-200 rounded-lg p-5 shadow-sm">
+                            <h2 className="text-sm font-semibold text-purple-700 mb-3">Pre-Order</h2>
+                            <div className="space-y-2 text-sm">
+                                <div className="flex justify-between text-gray-500">
+                                    <span>Full total</span>
+                                    <span>RM {(order.pre_order_full_total || 0).toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-gray-500">
+                                    <span>Deposit ({order.pre_order_deposit_percent || 0}%)</span>
+                                    <span className="text-green-600 font-medium">RM {(order.deposit_amount || 0).toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-gray-500">
+                                    <span>Balance due</span>
+                                    <span className={order.balance_status === 'paid' ? 'text-green-600 font-medium' : 'text-orange-600 font-medium'}>
+                                        RM {(order.balance_amount || 0).toFixed(2)} {order.balance_status === 'paid' ? '(Paid)' : ''}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {order.status === 'DEPOSIT_PAID' && (
+                                <div className="mt-4 pt-4 border-t border-gray-100">
+                                    <button
+                                        onClick={handleGenerateBalanceLink}
+                                        disabled={generatingBalanceLink}
+                                        className="w-full px-3 py-2 bg-purple-600 text-white rounded text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
+                                    >
+                                        {generatingBalanceLink ? 'Generating…' : 'Generate Balance Payment Link'}
+                                    </button>
+                                    {balanceLinkUrl && (
+                                        <div className="mt-3 space-y-2">
+                                            <input
+                                                readOnly
+                                                value={balanceLinkUrl}
+                                                onFocus={(e) => e.target.select()}
+                                                className="w-full text-xs font-mono px-2 py-2 border border-gray-200 rounded bg-gray-50 text-gray-600"
+                                            />
+                                            {order.customer?.phone && (
+                                                <a
+                                                    href={`https://wa.me/${order.customer.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi ${order.customer.name}, your pre-order is ready! Please settle the balance payment here: ${balanceLinkUrl}`)}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="block text-center px-3 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700"
+                                                >
+                                                    Share via WhatsApp
+                                                </a>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Status Timeline */}
                     {order.status_history && order.status_history.length > 0 && (

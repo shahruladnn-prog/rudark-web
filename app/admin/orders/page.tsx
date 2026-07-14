@@ -15,6 +15,8 @@ import { useToast } from '@/components/ui/toast';
 const STATUS_COLORS: Record<string, string> = {
     PENDING: 'bg-amber-50 text-amber-700 border-amber-200',
     PENDING_PAYMENT: 'bg-amber-50 text-amber-700 border-amber-200',
+    DEPOSIT_PAID: 'bg-purple-50 text-purple-700 border-purple-200',
+    BALANCE_DUE: 'bg-orange-50 text-orange-700 border-orange-200',
     PAID: 'bg-blue-50 text-blue-700 border-blue-200',
     PROCESSING: 'bg-indigo-50 text-indigo-700 border-indigo-200',
     READY_TO_SHIP: 'bg-teal-50 text-teal-700 border-teal-200',

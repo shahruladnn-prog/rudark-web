@@ -18,6 +18,14 @@ export async function verifyOrderPayment(orderId: string) {
 
         const data = orderDoc.data();
 
+        // Pre-orders settle in two separate CHIP purchases (deposit, then balance).
+        // This function only ever checks order.chip_purchase_id — the deposit's purchase
+        // id — so it can never correctly verify a balance payment. Refuse outright rather
+        // than risk marking a still-DEPOSIT_PAID order fully PAID off a stale check.
+        if (data?.is_pre_order) {
+            return { success: false, error: 'This is a pre-order — use the admin order page\'s balance payment tools instead of manual verification.' };
+        }
+
         // 1. If already paid, just return true
         if (data?.status === 'PAID' || data?.payment_status === 'paid') {
             console.log(`[VerifyOrder] Order ${orderId} is already PAID.`);

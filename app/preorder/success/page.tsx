@@ -1,0 +1,95 @@
+'use client';
+
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
+import Link from 'next/link';
+import { CheckCircle, MessageSquare, AlertCircle } from 'lucide-react';
+
+function SuccessContent() {
+    const searchParams = useSearchParams();
+    const orderId = searchParams.get('order_id');
+    const isBalancePayment = searchParams.get('type') === 'balance';
+    const error = searchParams.get('error');
+
+    if (!orderId) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-rudark-matte text-white">
+                <p className="font-mono text-red-500">[ERROR]: INVALID ORDER REFERENCE</p>
+            </div>
+        );
+    }
+
+    const whatsappMessage = error
+        ? `Hi RudArk, my payment for Pre-Order #${orderId} didn't go through. Can you help?`
+        : isBalancePayment
+            ? `Hi RudArk, I just paid the balance for Pre-Order #${orderId}. Can you confirm?`
+            : `Hi RudArk, I just paid the deposit for Pre-Order #${orderId}. Can you confirm?`;
+    const whatsappLink = `https://wa.me/60135518857?text=${encodeURIComponent(whatsappMessage)}`;
+
+    const heading = error ? 'Payment Not Completed' : isBalancePayment ? 'Balance Payment Received' : 'Pre-Order Received';
+
+    const bodyMessage = error
+        ? "Your payment didn't go through — no charge was made. Contact us on WhatsApp and we'll resend the payment link."
+        : isBalancePayment
+            ? 'Your balance payment has been received. Your order is now fully paid — we\'ll be in touch with shipping details.'
+            : 'Your deposit has been received and your item is reserved.';
+
+    const footNote = error
+        ? undefined
+        : isBalancePayment
+            ? undefined
+            : "We'll be in touch when your item is ready — the remaining balance will be collected then.";
+
+    return (
+        <div className="min-h-screen bg-rudark-matte text-white flex flex-col items-center justify-center p-4">
+            <div className={`p-8 rounded-full mb-8 border ${error ? 'bg-red-500/10 border-red-500/30' : 'bg-rudark-volt/10 border-rudark-volt/30'}`}>
+                {error ? (
+                    <AlertCircle className="w-16 h-16 text-red-500" />
+                ) : (
+                    <CheckCircle className="w-16 h-16 text-rudark-volt" />
+                )}
+            </div>
+
+            <h1 className="text-4xl md:text-5xl font-condensed font-bold text-white mb-2 uppercase tracking-wide">
+                {heading}
+            </h1>
+            <p className="text-rudark-volt font-mono mb-8 tracking-widest text-sm">REF: {orderId}</p>
+
+            <div className="bg-rudark-carbon border border-rudark-grey p-6 rounded-sm max-w-md w-full mb-8 text-center text-gray-300 space-y-3">
+                <p>{bodyMessage}</p>
+                {footNote && (
+                    <p className="text-sm font-light text-gray-500 border-t border-gray-800 pt-4">
+                        {footNote}
+                    </p>
+                )}
+            </div>
+
+            <div className="space-y-4 w-full max-w-xs">
+                <a
+                    href={whatsappLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full bg-green-600 hover:bg-green-500 text-white font-condensed font-bold py-4 px-6 rounded-sm transition-colors uppercase tracking-wider"
+                >
+                    <MessageSquare size={20} />
+                    {error ? 'Get Help on WhatsApp' : 'Confirm on WhatsApp'}
+                </a>
+
+                <Link
+                    href="/"
+                    className="flex items-center justify-center w-full bg-transparent border border-rudark-grey hover:border-rudark-volt hover:text-rudark-volt text-gray-300 font-condensed font-bold py-4 px-6 rounded-sm transition-colors uppercase tracking-wider"
+                >
+                    Return to Base
+                </Link>
+            </div>
+        </div>
+    );
+}
+
+export default function PreOrderSuccessPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-rudark-matte text-white flex items-center justify-center">Loading...</div>}>
+            <SuccessContent />
+        </Suspense>
+    );
+}

@@ -37,6 +37,111 @@ interface ChipPurchaseRequest {
 }
 
 /**
+ * Build a CHIP purchase and return its id + checkout URL, without redirecting.
+ * Shared by the normal checkout flow (processChipPayment) and any flow that
+ * needs to hand the URL back to the caller instead of redirecting (e.g. an
+ * admin action generating a payment link for a customer to pay later).
+ */
+export async function createChipPurchase(
+    orderId: string,
+    products: Array<{ name: string; price: number; quantity: number }>,
+    customer: any,
+    redirects?: { successPath?: string; failurePath?: string; cancelPath?: string }
+): Promise<{ id: string; checkout_url: string } | { error: string }> {
+    try {
+        const settings = await getPaymentSettings();
+        const apiKey = await getChipApiKey();
+
+        // Smart Base URL resolution
+        let baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+
+        if (!baseUrl) {
+            if (process.env.VERCEL_URL) {
+                baseUrl = `https://${process.env.VERCEL_URL}`;
+            } else if (process.env.NEXT_PUBLIC_VERCEL_URL) {
+                baseUrl = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
+            } else {
+                baseUrl = 'http://localhost:3000';
+            }
+        }
+
+        // Remove trailing slash if present
+        if (baseUrl.endsWith('/')) {
+            baseUrl = baseUrl.slice(0, -1);
+        }
+
+        // CHIP doesn't allow custom ports in webhook URLs
+        // For localhost testing, use a placeholder URL (webhook won't work locally anyway)
+        const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+        const webhookUrl = isLocalhost
+            ? 'https://example.com/api/webhooks/chip' // Placeholder for local testing
+            : `${baseUrl}/api/webhooks/chip`;
+
+        const purchaseRequest: ChipPurchaseRequest = {
+            brand_id: settings.chip.brand_id,
+            client: {
+                email: customer.email,
+                phone: customer.phone || '',
+                full_name: customer.name,
+                street_address: customer.address || '',
+                city: customer.city || 'N/A',
+                zip_code: customer.postcode || '00000',
+                state: customer.state || 'N/A',
+                shipping_street_address: customer.address || '',
+                shipping_city: customer.city || 'N/A',
+                shipping_zip_code: customer.postcode || '00000',
+                shipping_state: customer.state || 'N/A'
+            },
+            purchase: {
+                products,
+                currency: 'MYR'
+            },
+            reference: orderId,
+            order_id: orderId,
+            success_redirect: `${baseUrl}${redirects?.successPath ?? `/checkout/success?order_id=${orderId}`}`,
+            failure_redirect: `${baseUrl}${redirects?.failurePath ?? `/checkout?error=payment_failed&order_id=${orderId}`}`,
+            cancel_redirect: `${baseUrl}${redirects?.cancelPath ?? `/checkout?error=payment_cancelled&order_id=${orderId}`}`,
+            success_callback: webhookUrl
+        };
+
+        console.log('[CHIP] Creating purchase:', {
+            orderId,
+            products: products.length
+        });
+
+        const response = await fetch('https://gate.chip-in.asia/api/v1/purchases/', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(purchaseRequest)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[CHIP] API Error:', errorText);
+            throw new Error(`CHIP API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        console.log('[CHIP] Purchase created:', {
+            id: data.id,
+            status: data.status,
+            checkout_url: data.checkout_url
+        });
+
+        return { id: data.id, checkout_url: data.checkout_url };
+
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('[CHIP] Purchase creation error:', errorMessage);
+        return { error: `Failed to create CHIP purchase: ${errorMessage}` };
+    }
+}
+
+/**
  * Process payment via CHIP gateway
  */
 export async function processChipPayment(
@@ -48,9 +153,6 @@ export async function processChipPayment(
     discount: number
 ) {
     try {
-        const settings = await getPaymentSettings();
-        const apiKey = await getChipApiKey();
-
         // Convert cart items to CHIP products format
         // If there's a discount, we need to distribute it across items proportionally
         // CHIP does NOT accept negative price line items
@@ -121,95 +223,20 @@ export async function processChipPayment(
             });
         }
 
-        // Smart Base URL resolution
-        let baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+        const result = await createChipPurchase(orderId, products, customer);
 
-        if (!baseUrl) {
-            if (process.env.VERCEL_URL) {
-                baseUrl = `https://${process.env.VERCEL_URL}`;
-            } else if (process.env.NEXT_PUBLIC_VERCEL_URL) {
-                baseUrl = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
-            } else {
-                baseUrl = 'http://localhost:3000';
-            }
+        if ('error' in result) {
+            throw new Error(result.error);
         }
-
-        // Remove trailing slash if present
-        if (baseUrl.endsWith('/')) {
-            baseUrl = baseUrl.slice(0, -1);
-        }
-
-        // CHIP doesn't allow custom ports in webhook URLs
-        // For localhost testing, use a placeholder URL (webhook won't work locally anyway)
-        const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
-        const webhookUrl = isLocalhost
-            ? 'https://example.com/api/webhooks/chip' // Placeholder for local testing
-            : `${baseUrl}/api/webhooks/chip`;
-
-        const purchaseRequest: ChipPurchaseRequest = {
-            brand_id: settings.chip.brand_id,
-            client: {
-                email: customer.email,
-                phone: customer.phone || '',
-                full_name: customer.name,
-                street_address: customer.address || '',
-                city: customer.city || 'N/A',
-                zip_code: customer.postcode || '00000',
-                state: customer.state || 'N/A',
-                shipping_street_address: customer.address || '',
-                shipping_city: customer.city || 'N/A',
-                shipping_zip_code: customer.postcode || '00000',
-                shipping_state: customer.state || 'N/A'
-            },
-            purchase: {
-                products,
-                currency: 'MYR'
-            },
-            reference: orderId,
-            order_id: orderId,
-            success_redirect: `${baseUrl}/checkout/success?order_id=${orderId}`,
-            failure_redirect: `${baseUrl}/checkout?error=payment_failed&order_id=${orderId}`,
-            cancel_redirect: `${baseUrl}/checkout?error=payment_cancelled&order_id=${orderId}`,
-            success_callback: webhookUrl
-        };
-
-        console.log('[CHIP] Creating purchase:', {
-            orderId,
-            amount: totalAmount,
-            products: products.length
-        });
-
-        const response = await fetch('https://gate.chip-in.asia/api/v1/purchases/', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(purchaseRequest)
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[CHIP] API Error:', errorText);
-            throw new Error(`CHIP API error: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        console.log('[CHIP] Purchase created:', {
-            id: data.id,
-            status: data.status,
-            checkout_url: data.checkout_url
-        });
 
         // Update order with CHIP purchase ID
         await adminDb.collection('orders').doc(orderId).update({
-            chip_purchase_id: data.id,
+            chip_purchase_id: result.id,
             payment_gateway: 'chip'
         });
 
         // Redirect to CHIP checkout page
-        redirect(data.checkout_url);
+        redirect(result.checkout_url);
 
     } catch (error) {
         if (error instanceof Error && error.message === 'NEXT_REDIRECT') {

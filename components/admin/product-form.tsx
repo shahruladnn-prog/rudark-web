@@ -871,6 +871,49 @@ export default function ProductForm({ initialData, categories = [] }: { initialD
                         <div className="flex items-center gap-3 bg-black p-3 border border-gray-700"><input type="checkbox" id="catalog_featured" checked={!!formData.catalog_featured} onChange={(e) => updateField('catalog_featured', e.target.checked)} className="accent-rudark-volt" /><label htmlFor="catalog_featured" className="text-xs uppercase text-white">Featured in catalog</label></div>
                     </div>
 
+                    {/* Pre-Order Card */}
+                    <div className="bg-[#1a1a1a] border border-gray-800 p-5 shadow-sm">
+                        <h3 className="text-white text-xs font-bold uppercase mb-4 border-b border-gray-700/50 pb-2">Pre-Order</h3>
+                        <div className="flex items-center gap-3 bg-black p-3 border border-gray-700 mb-4">
+                            <input
+                                type="checkbox"
+                                id="is_pre_order"
+                                checked={!!formData.is_pre_order}
+                                onChange={(e) => updateField('is_pre_order', e.target.checked)}
+                                className="w-4 h-4 accent-rudark-volt"
+                            />
+                            <label htmlFor="is_pre_order" className="text-xs font-bold uppercase text-white cursor-pointer select-none">
+                                Enable Pre-Order (deposit now, balance later)
+                            </label>
+                        </div>
+                        {formData.is_pre_order && (
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">Deposit %</label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={100}
+                                        value={formData.pre_order_deposit_percent ?? ''}
+                                        onChange={(e) => updateField('pre_order_deposit_percent', e.target.value ? Number(e.target.value) : undefined)}
+                                        placeholder="30"
+                                        className="w-full bg-black border border-gray-700 text-white text-xs px-2 py-2"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">Estimated Availability</label>
+                                    <input
+                                        type="text"
+                                        value={formData.pre_order_eta || ''}
+                                        onChange={(e) => updateField('pre_order_eta', e.target.value)}
+                                        placeholder="September 2026"
+                                        className="w-full bg-black border border-gray-700 text-white text-xs px-2 py-2"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Logistics Card */}
                     <div className="bg-[#1a1a1a] border border-gray-800 p-5 shadow-sm">
                         <div className="flex items-center gap-2 mb-4 border-b border-gray-700/50 pb-2">

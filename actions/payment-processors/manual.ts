@@ -42,6 +42,11 @@ export async function approveManualPayment(orderId: string, adminUserId?: string
     try {
         const { processSuccessfulOrder } = await import('@/actions/order-utils');
 
+        const orderSnap = await adminDb.collection('orders').doc(orderId).get();
+        if (orderSnap.data()?.is_pre_order) {
+            return { success: false, error: 'This is a pre-order — use the admin order page\'s balance payment tools instead.' };
+        }
+
         // Update order status
         await adminDb.collection('orders').doc(orderId).update({
             status: 'PAID',

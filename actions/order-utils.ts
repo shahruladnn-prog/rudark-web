@@ -4,7 +4,13 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { createShipment } from './shipping-actions';
 import { deductStock } from '@/actions/stock-validation';
 
-export async function processSuccessfulOrder(orderId: string) {
+// A pre-order is only "fully paid" (safe to fulfill/deduct-stock-for/ship) once it
+// reaches one of these statuses. DEPOSIT_PAID/BALANCE_DUE/PENDING mean the balance
+// hasn't actually been collected yet — running fulfillment then would prematurely
+// mark the order PAID and ship an item that was never fully paid for.
+const PRE_ORDER_FULFILLABLE_STATUSES = new Set(['PAID', 'PROCESSING', 'READY_TO_SHIP', 'SHIPPED', 'DELIVERED', 'COMPLETED']);
+
+export async function processSuccessfulOrder(orderId: string, opts?: { skipStockDeduction?: boolean }) {
     try {
         console.log(`[Order Processing] Starting for ${orderId}`);
         const orderRef = adminDb.collection('orders').doc(orderId);
@@ -17,6 +23,11 @@ export async function processSuccessfulOrder(orderId: string) {
 
         const order = orderDoc.data();
         if (!order) return { success: false, error: 'No data' };
+
+        if (order.is_pre_order && !PRE_ORDER_FULFILLABLE_STATUSES.has(order.status)) {
+            console.error(`[Order Processing] Refusing to fulfill pre-order ${orderId} — status is still ${order.status}, balance not yet collected.`);
+            return { success: false, error: `Pre-order balance has not been collected yet (status: ${order.status})` };
+        }
 
         const updates: any = {
             status: 'PAID',
@@ -42,8 +53,15 @@ export async function processSuccessfulOrder(orderId: string) {
         }
 
         // 1. DEDUCT STOCK from Firebase (converts reserved → actual deduction)
+        // Pre-orders never reserved stock in the first place (skip is derived from
+        // order.is_pre_order itself, not just a caller-supplied flag, so every caller
+        // gets this protection for free instead of needing to remember to opt in).
+        const skipStockDeduction = opts?.skipStockDeduction || order.is_pre_order === true;
         if (order.stock_deducted) {
             console.log('[Order Processing] Stock already deducted, skipping.');
+        } else if (skipStockDeduction) {
+            console.log('[Order Processing] Skipping stock deduction (pre-order — stock managed manually).');
+            updates.stock_deducted = true;
         } else {
             console.log('[Order Processing] Deducting stock...');
             const stockResult = await deductStock(order.items);

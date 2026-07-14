@@ -136,14 +136,33 @@ export async function POST(req: NextRequest) {
                     return NextResponse.json({ received: true, status: 'already_processed' });
                 }
 
-                // Verify the amount paid matches what we expect for this order.
-                const expectedTotalCents = Math.round((currentOrder?.total_amount || 0) * 100);
+                // Never let a stale/duplicate CHIP event resurrect a terminal order — e.g. a
+                // long-lived balance-payment link paid after the order was already refunded
+                // or cancelled must not silently undo that.
+                if (currentOrder?.status === 'REFUNDED' || currentOrder?.status === 'CANCELLED') {
+                    console.warn('[CHIP Webhook] Ignoring payment for order in terminal state:', orderId, currentOrder.status);
+                    return NextResponse.json({ received: true, status: 'ignored_terminal_state' });
+                }
+
+                // Pre-orders settle in two legs (deposit, then balance) as two separate CHIP
+                // purchases against the same order — tell them apart by which purchase id paid.
+                const isBalancePayment = !!currentOrder?.is_pre_order && purchase?.id === currentOrder?.chip_balance_purchase_id;
+                const isPreOrderDeposit = !!currentOrder?.is_pre_order && !isBalancePayment;
+
+                // Verify the amount paid matches what we expect for this order/leg.
+                const expectedTotalCents = Math.round((isBalancePayment ? (currentOrder?.balance_amount || 0) : (currentOrder?.total_amount || 0)) * 100);
                 const paidCents = typeof purchase?.payment?.amount === 'number' ? purchase.payment.amount : null;
 
+                // For a pre-order's balance leg, a verification failure must not strand the
+                // order in a status with no retry path (AMOUNT_MISMATCH/AMOUNT_VERIFICATION_FAILED
+                // aren't recognized by collectPreOrderBalance's DEPOSIT_PAID check or the admin
+                // UI's "Generate Balance Payment Link" button). Revert to DEPOSIT_PAID instead,
+                // recording the failure reason on balance_status so it's still visible to admin.
                 if (paidCents === null) {
                     console.error('[CHIP Webhook] No payment amount in webhook payload', { orderId, purchase });
                     await orderRef.update({
-                        status: 'AMOUNT_VERIFICATION_FAILED',
+                        status: isBalancePayment ? 'DEPOSIT_PAID' : 'AMOUNT_VERIFICATION_FAILED',
+                        ...(isBalancePayment ? { balance_status: 'amount_verification_failed' } : {}),
                         payment_verification_error: 'Missing payment.amount in webhook',
                         updated_at: new Date()
                     });
@@ -154,7 +173,8 @@ export async function POST(req: NextRequest) {
                 if (paidCurrency && paidCurrency !== 'MYR') {
                     console.error('[CHIP Webhook] Unexpected currency', { orderId, paidCurrency });
                     await orderRef.update({
-                        status: 'AMOUNT_VERIFICATION_FAILED',
+                        status: isBalancePayment ? 'DEPOSIT_PAID' : 'AMOUNT_VERIFICATION_FAILED',
+                        ...(isBalancePayment ? { balance_status: 'amount_verification_failed' } : {}),
                         payment_verification_error: `Unexpected currency: ${paidCurrency}`,
                         updated_at: new Date()
                     });
@@ -172,13 +192,34 @@ export async function POST(req: NextRequest) {
                         diffCents: paidCents - expectedTotalCents
                     });
                     await orderRef.update({
-                        status: 'AMOUNT_MISMATCH',
+                        status: isBalancePayment ? 'DEPOSIT_PAID' : 'AMOUNT_MISMATCH',
+                        ...(isBalancePayment ? { balance_status: 'amount_mismatch' } : {}),
                         payment_amount_paid_cents: paidCents,
                         payment_amount_expected_cents: expectedTotalCents,
                         payment_verification_error: `Mismatch: paid ${paidCents} cents, expected ${expectedTotalCents} cents`,
                         updated_at: new Date()
                     });
                     return NextResponse.json({ received: true, status: 'amount_mismatch' });
+                }
+
+                // Pre-order deposit leg: just record it as DEPOSIT_PAID. No shipment/stock
+                // action belongs here — the item isn't in hand yet, only the deposit is.
+                if (isPreOrderDeposit) {
+                    await orderRef.update({
+                        status: 'DEPOSIT_PAID',
+                        payment_status: 'deposit_paid',
+                        deposit_paid_at: new Date(),
+                        chip_payment_data: {
+                            purchase_id: purchase.id,
+                            payment_method: purchase.transaction_data?.payment_method,
+                            paid_on: purchase.payment?.paid_on,
+                            amount: purchase.payment?.amount,
+                            currency: purchase.payment?.currency
+                        },
+                        updated_at: new Date()
+                    });
+                    console.log('[CHIP Webhook] Pre-order deposit paid:', orderId);
+                    return NextResponse.json({ received: true, status: 'deposit_paid' });
                 }
 
                 // 1. Mark as PROCESSING to lock the record
@@ -197,13 +238,16 @@ export async function POST(req: NextRequest) {
 
                 // 2. Process fulfillment logic
                 try {
+                    // processSuccessfulOrder now derives stock-deduction skipping from
+                    // order.is_pre_order itself, so no explicit opt-in needed here.
                     await processSuccessfulOrder(orderId);
-                    
+
                     // 3. Mark as PAID only after successful processing
                     await orderRef.update({
                         status: 'PAID',
                         processed_at: new Date(),
-                        updated_at: new Date()
+                        updated_at: new Date(),
+                        ...(isBalancePayment ? { balance_status: 'paid', balance_paid_at: new Date() } : {})
                     });
                     console.log('[CHIP Webhook] Fulfillment completed successfully:', orderId);
                 } catch (fulfillError: any) {
@@ -220,29 +264,60 @@ export async function POST(req: NextRequest) {
 
                 break;
 
-            case 'purchase.payment_failure':
+            case 'purchase.payment_failure': {
                 console.log('[CHIP Webhook] Payment failed for order:', orderId);
 
-                // Release reserved stock so items become available again
-                try {
-                    const { releaseOrderStock } = await import('@/actions/stock-validation');
-                    await releaseOrderStock(orderId);
-                    console.log('[CHIP Webhook] Reserved stock released for order:', orderId);
-                } catch (releaseErr) {
-                    console.error('[CHIP Webhook] Failed to release stock:', releaseErr);
+                const failedOrder = orderDoc.data();
+
+                if (!failedOrder?.is_pre_order) {
+                    // Release reserved stock so items become available again
+                    try {
+                        const { releaseOrderStock } = await import('@/actions/stock-validation');
+                        await releaseOrderStock(orderId);
+                        console.log('[CHIP Webhook] Reserved stock released for order:', orderId);
+                    } catch (releaseErr) {
+                        console.error('[CHIP Webhook] Failed to release stock:', releaseErr);
+                    }
+
+                    await orderRef.update({
+                        status: 'PAYMENT_FAILED',
+                        payment_status: 'failed',
+                        chip_payment_data: {
+                            purchase_id: purchase.id,
+                            error: purchase.transaction_data?.attempts?.[0]?.error
+                        },
+                        updated_at: new Date()
+                    });
+                } else if (failedOrder.status === 'BALANCE_DUE') {
+                    // Deposit is already secured — revert to DEPOSIT_PAID (not PAYMENT_FAILED)
+                    // so collectPreOrderBalance's status check and the admin UI's "Generate
+                    // Balance Payment Link" button both work again and admin can retry.
+                    await orderRef.update({
+                        status: 'DEPOSIT_PAID',
+                        balance_status: 'payment_failed',
+                        updated_at: new Date()
+                    });
+                } else if (failedOrder.status === 'PENDING') {
+                    // Deposit attempt failed — nothing was ever reserved or collected.
+                    await orderRef.update({
+                        status: 'PAYMENT_FAILED',
+                        payment_status: 'failed',
+                        chip_payment_data: {
+                            purchase_id: purchase.id,
+                            error: purchase.transaction_data?.attempts?.[0]?.error
+                        },
+                        updated_at: new Date()
+                    });
+                } else {
+                    // Unexpected status for a payment_failure event on a pre-order — e.g. a late
+                    // or duplicate failure event for a retried attempt, arriving after a later
+                    // successful attempt already moved the order past PENDING/BALANCE_DUE. Money
+                    // may already be captured, so don't touch status; just log for manual review.
+                    console.warn('[CHIP Webhook] payment_failure for pre-order in unexpected status, leaving untouched:', orderId, failedOrder.status);
                 }
 
-                await orderRef.update({
-                    status: 'PAYMENT_FAILED',
-                    payment_status: 'failed',
-                    chip_payment_data: {
-                        purchase_id: purchase.id,
-                        error: purchase.transaction_data?.attempts?.[0]?.error
-                    },
-                    updated_at: new Date()
-                });
-
                 break;
+            }
 
             case 'purchase.refunded':
                 console.log('[CHIP Webhook] Payment refunded for order:', orderId);

@@ -38,6 +38,10 @@ export async function GET(req: NextRequest) {
             });
         }
 
+        if (order?.is_pre_order) {
+            return NextResponse.json({ error: 'This is a pre-order — use the admin order page\'s balance payment tools instead of manual processing.' }, { status: 400 });
+        }
+
         console.log('[Manual Process] Processing order:', orderId);
 
         // Update order status to PAID
